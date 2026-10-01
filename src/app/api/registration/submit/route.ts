@@ -19,8 +19,11 @@ export async function POST(req: NextRequest) {
       type,
       departure_point_id,
       package_id,
+      pic_name,
       pic_phone,
       pic_email,
+      pic_domicile_city,
+      pic_is_departing,
       members,
       payment_type,
       payment_date,
@@ -108,6 +111,17 @@ export async function POST(req: NextRequest) {
       registrationCode = `UMR-2026-${type === 'family' ? 'G' : ''}${rand}`
     }
 
+    // Store PIC information in notes JSON metadata
+    const picMetadata = {
+      pic: {
+        name: (pic_name as string)?.trim() || '',
+        phone: (pic_phone as string)?.trim() || '',
+        email: (pic_email as string)?.trim() || '',
+        domicile_city: (pic_domicile_city as string)?.trim() || '',
+        is_departing: Boolean(pic_is_departing),
+      },
+    }
+
     // Create registration group
     const { data: group, error: groupError } = await supabase
       .from('registration_groups')
@@ -117,6 +131,7 @@ export async function POST(req: NextRequest) {
         departure_point_id: targetDeparturePointId,
         package_id: targetPackageId,
         group_status: 'submitted',
+        notes: JSON.stringify(picMetadata),
       })
       .select()
       .single()
@@ -168,12 +183,28 @@ export async function POST(req: NextRequest) {
       throw new Error('Gagal menyimpan data jamaah.')
     }
 
-    // Set PIC
-    const picJamaah = jamaahs[0]
-    await supabase
-      .from('registration_groups')
-      .update({ pic_jamaah_id: picJamaah.id })
-      .eq('id', group.id)
+    // Set PIC link ONLY if PIC is departing as one of the registered jamaahs
+    let picJamaahId: string | null = null
+    if (pic_is_departing) {
+      const selfJamaah =
+        jamaahs.find((j) => j.relationship_to_pic === 'Diri Sendiri (PIC)') ||
+        jamaahs.find(
+          (j) =>
+            pic_name &&
+            j.full_name?.toLowerCase().trim() === (pic_name as string).toLowerCase().trim()
+        ) ||
+        jamaahs[0]
+      if (selfJamaah) {
+        picJamaahId = selfJamaah.id
+      }
+    }
+
+    if (picJamaahId) {
+      await supabase
+        .from('registration_groups')
+        .update({ pic_jamaah_id: picJamaahId })
+        .eq('id', group.id)
+    }
 
     // Create payment record
     let paymentId: string | null = null
@@ -184,7 +215,7 @@ export async function POST(req: NextRequest) {
         .from('payments')
         .insert({
           group_id: group.id,
-          payer_jamaah_id: picJamaah.id,
+          payer_jamaah_id: picJamaahId || jamaahs[0]?.id || null,
           payment_type,
           amount,
           payment_date: payment_date || null,
@@ -202,7 +233,13 @@ export async function POST(req: NextRequest) {
       action: 'registration.submitted',
       entity_type: 'registration_group',
       entity_id: group.id,
-      new_data: { registration_code: registrationCode, type, member_count: members.length },
+      new_data: {
+        registration_code: registrationCode,
+        type,
+        pic_name,
+        pic_is_departing: Boolean(pic_is_departing),
+        member_count: members.length,
+      },
     })
 
     // Mark idempotency key as processed

@@ -1,6 +1,6 @@
 import { createServiceClient } from '@/lib/supabase/server'
 import { GroupStatusBadge } from '@/components/ui/StatusBadge'
-import { formatDate, maskNik } from '@/lib/utils'
+import { formatDate, maskNik, getGroupPic } from '@/lib/utils'
 import Link from 'next/link'
 import { Search, Users, ClipboardList } from 'lucide-react'
 
@@ -203,12 +203,26 @@ export default async function PendaftaranPage({ searchParams }: PageProps) {
                         </div>
                       </td>
                       <td className="px-4 py-3">
-                        <p className="text-[var(--text-primary)] font-medium">
-                          {((group.pic_jamaah as Record<string, unknown>)?.full_name as string) ?? '—'}
-                        </p>
-                        <p className="text-xs text-[var(--text-muted)]">
-                          {((group.pic_jamaah as Record<string, unknown>)?.phone as string) ?? ''}
-                        </p>
+                        {(() => {
+                          const pic = getGroupPic(group as Record<string, unknown>)
+                          return (
+                            <>
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <p className="text-[var(--text-primary)] font-medium">
+                                  {pic.name}
+                                </p>
+                                {!pic.is_departing && (
+                                  <span className="text-[9px] bg-amber-100 text-amber-800 font-semibold px-1.5 py-0.2 rounded border border-amber-200">
+                                    Tidak Berangkat
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-xs text-[var(--text-muted)]">
+                                {pic.phone}
+                              </p>
+                            </>
+                          )
+                        })()}
                       </td>
                       <td className="px-4 py-3 text-center">
                         <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">

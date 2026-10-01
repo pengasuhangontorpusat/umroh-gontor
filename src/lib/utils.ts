@@ -75,3 +75,63 @@ export function formatFileSize(bytes: number): string {
 export function generateIdempotencyKey(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2)}`
 }
+
+export interface GroupPicResult {
+  name: string
+  phone: string
+  email: string
+  domicile_city: string
+  is_departing: boolean
+}
+
+export function getGroupPic(group: any): GroupPicResult {
+  if (!group) {
+    return { name: '—', phone: '', email: '', domicile_city: '', is_departing: true }
+  }
+
+  // 1. Try parsing JSON stored in notes
+  let picFromNotes: any = null
+  if (typeof group.notes === 'string' && group.notes.trim().startsWith('{')) {
+    try {
+      const parsed = JSON.parse(group.notes)
+      if (parsed?.pic && typeof parsed.pic === 'object') {
+        picFromNotes = parsed.pic
+      }
+    } catch {}
+  }
+
+  const rawPicJamaah = group.pic_jamaah
+  const picJamaah = Array.isArray(rawPicJamaah) ? rawPicJamaah[0] : rawPicJamaah
+
+  const name =
+    ((picFromNotes?.name as string) || '').trim() ||
+    ((group.pic_name as string) || '').trim() ||
+    ((picJamaah?.full_name as string) || '').trim() ||
+    '—'
+
+  const phone =
+    ((picFromNotes?.phone as string) || '').trim() ||
+    ((group.pic_phone as string) || '').trim() ||
+    ((picJamaah?.phone as string) || '').trim() ||
+    ''
+
+  const email =
+    ((picFromNotes?.email as string) || '').trim() ||
+    ((group.pic_email as string) || '').trim() ||
+    ''
+
+  const domicile_city =
+    ((picFromNotes?.domicile_city as string) || '').trim() ||
+    ((group.pic_domicile_city as string) || '').trim() ||
+    ''
+
+  const is_departing =
+    picFromNotes?.is_departing !== undefined
+      ? Boolean(picFromNotes.is_departing)
+      : group.pic_is_departing !== undefined
+      ? Boolean(group.pic_is_departing)
+      : Boolean(group.pic_jamaah_id || picJamaah)
+
+  return { name, phone, email, domicile_city, is_departing }
+}
+

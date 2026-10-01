@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { GroupStatusBadge, PaymentStatusBadge } from '@/components/ui/StatusBadge'
 import { Users, ClipboardList, FileText, CreditCard, CheckCircle2 } from 'lucide-react'
 import Link from 'next/link'
-import { formatDate } from '@/lib/utils'
+import { formatDate, getGroupPic } from '@/lib/utils'
 
 async function getDashboardStats() {
   const supabase = await createClient()
@@ -171,7 +171,7 @@ export default async function AdminDashboard() {
                       </Link>
                     </td>
                     <td className="px-4 py-3 text-[var(--text-primary)]">
-                      {((group.pic_jamaah as Record<string, unknown>)?.full_name as string) ?? '—'}
+                      {getGroupPic(group as Record<string, unknown>).name}
                     </td>
                     <td className="px-4 py-3 text-[var(--text-secondary)]">
                       {((group.departure_point as Record<string, unknown>)?.name as string) ?? '—'}

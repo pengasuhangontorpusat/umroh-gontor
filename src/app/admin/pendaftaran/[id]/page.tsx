@@ -1,7 +1,7 @@
 import { createServiceClient } from '@/lib/supabase/server'
 import { notFound } from 'next/navigation'
 import { GroupStatusBadge, DocumentStatusBadge, PaymentStatusBadge } from '@/components/ui/StatusBadge'
-import { formatDate, formatCurrency, maskNik } from '@/lib/utils'
+import { formatDate, formatCurrency, maskNik, getGroupPic } from '@/lib/utils'
 import {
   UpdateStatusForm,
   DocumentVerificationActions,
@@ -68,12 +68,26 @@ export default async function GroupDetailPage({ params }: PageProps) {
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
           <div>
             <p className="text-xs text-[var(--text-muted)]">PIC</p>
-            <p className="font-medium text-[var(--text-primary)]">
-              {(group.pic_jamaah as Record<string, unknown>)?.full_name as string ?? '—'}
-            </p>
-            <p className="text-xs text-[var(--text-muted)]">
-              {(group.pic_jamaah as Record<string, unknown>)?.phone as string}
-            </p>
+            {(() => {
+              const pic = getGroupPic(group as Record<string, unknown>)
+              return (
+                <>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <p className="font-medium text-[var(--text-primary)]">
+                      {pic.name}
+                    </p>
+                    {!pic.is_departing && (
+                      <span className="text-[10px] bg-amber-100 text-amber-800 font-medium px-1.5 py-0.2 rounded border border-amber-200">
+                        Tidak Berangkat
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-[var(--text-muted)]">
+                    {pic.phone}
+                  </p>
+                </>
+              )
+            })()}
           </div>
           <div>
             <p className="text-xs text-[var(--text-muted)]">Jenis</p>

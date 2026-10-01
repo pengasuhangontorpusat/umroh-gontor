@@ -63,6 +63,14 @@ export interface Package {
   updated_at: string
 }
 
+export interface PicInfo {
+  name: string
+  phone: string
+  email: string
+  domicile_city: string
+  is_departing: boolean
+}
+
 export interface RegistrationGroup {
   id: string
   registration_code: string
@@ -75,6 +83,13 @@ export interface RegistrationGroup {
   notes: string | null
   created_at: string
   updated_at: string
+  // PIC info
+  pic_info?: PicInfo
+  pic_name?: string
+  pic_phone?: string
+  pic_email?: string
+  pic_domicile_city?: string
+  pic_is_departing?: boolean
   // Relations
   departure_point?: DeparturePoint
   package?: Package

@@ -71,8 +71,35 @@ export async function GET(req: NextRequest) {
       .eq('group_id', group.id)
       .order('created_at', { ascending: true })
 
+    // Parse PIC metadata from group.notes if available
+    let picInfo = null
+    if (group.notes) {
+      try {
+        const parsed = JSON.parse(group.notes)
+        if (parsed?.pic && typeof parsed.pic === 'object') {
+          picInfo = parsed.pic
+        }
+      } catch {}
+    }
+
+    const rawPicJamaah = group.pic_jamaah as any
+    const picJamaah = Array.isArray(rawPicJamaah) ? rawPicJamaah[0] : rawPicJamaah
+
+    const enrichedGroup = {
+      ...group,
+      pic_info: picInfo,
+      pic_name: picInfo?.name || picJamaah?.full_name || '',
+      pic_phone: picInfo?.phone || picJamaah?.phone || '',
+      pic_email: picInfo?.email || '',
+      pic_domicile_city: picInfo?.domicile_city || '',
+      pic_is_departing:
+        picInfo?.is_departing !== undefined
+          ? Boolean(picInfo.is_departing)
+          : Boolean(picJamaah),
+    }
+
     return NextResponse.json({
-      group,
+      group: enrichedGroup,
       jamaahs: jamaahs || [],
       payments: payments || [],
     })

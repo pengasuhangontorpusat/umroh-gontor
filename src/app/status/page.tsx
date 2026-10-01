@@ -28,6 +28,7 @@ import {
   formatCurrency,
   isKtpRequired,
   calculateAge,
+  getGroupPic,
 } from '@/lib/utils'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { FileUpload } from '@/components/ui/FileUpload'
@@ -160,13 +161,10 @@ function StatusContent() {
 
       // Save code to device history so user can revisit without retyping
       if (fetchedGroup.registration_code) {
-        const picName =
-          fetchedGroup.pic_jamaah?.full_name ||
-          fetchedJamaahs[0]?.full_name ||
-          ''
+        const pic = getGroupPic(fetchedGroup)
         saveRegistrationHistory({
           code: fetchedGroup.registration_code,
-          picName,
+          picName: pic.name,
           memberCount: fetchedJamaahs.length,
           date: fetchedGroup.created_at || new Date().toISOString(),
         })
@@ -632,35 +630,51 @@ function StatusContent() {
               </div>
 
               {/* Penanggung Jawab (PIC) Rombongan */}
-              {group.pic_jamaah && (
-                <div className="mt-4 pt-4 border-t border-[var(--border)] flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-50 p-3.5 rounded-lg border border-slate-200">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-emerald-700 text-white font-bold text-xs flex items-center justify-center shrink-0">
-                      PIC
-                    </div>
-                    <div>
-                      <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide block">
-                        Penanggung Jawab (PIC) Rombongan
-                      </span>
-                      <p className="text-sm font-bold text-slate-900">
-                        {group.pic_jamaah.full_name}
-                      </p>
-                    </div>
-                  </div>
+              {(() => {
+                const pic = getGroupPic(group)
+                if (!pic.name || pic.name === '—') return null
 
-                  <div className="flex items-center gap-3 text-xs text-slate-600">
-                    {group.pic_jamaah.phone && (
-                      <div className="flex items-center gap-1.5 font-mono">
-                        <Phone className="w-3.5 h-3.5 text-emerald-700" />
-                        <span>{group.pic_jamaah.phone}</span>
+                return (
+                  <div className="mt-4 pt-4 border-t border-[var(--border)] flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-50 p-3.5 rounded-lg border border-slate-200">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full bg-emerald-700 text-white font-bold text-xs flex items-center justify-center shrink-0">
+                        PIC
                       </div>
-                    )}
-                    <span className="text-[11px] font-semibold bg-emerald-50 text-emerald-800 px-2.5 py-0.5 rounded border border-emerald-200">
-                      Membawa {jamaahs.length} Jamaah
-                    </span>
+                      <div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">
+                            Penanggung Jawab (PIC) Rombongan
+                          </span>
+                          {!pic.is_departing ? (
+                            <span className="text-[10px] bg-amber-100 text-amber-800 font-semibold px-2 py-0.5 rounded-full border border-amber-200">
+                              Tidak Ikut Berangkat
+                            </span>
+                          ) : (
+                            <span className="text-[10px] bg-emerald-100 text-emerald-800 font-semibold px-2 py-0.5 rounded-full border border-emerald-200">
+                              Ikut Berangkat
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-sm font-bold text-slate-900 mt-0.5">
+                          {pic.name}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-3 text-xs text-slate-600">
+                      {pic.phone && (
+                        <div className="flex items-center gap-1.5 font-mono">
+                          <Phone className="w-3.5 h-3.5 text-emerald-700" />
+                          <span>{pic.phone}</span>
+                        </div>
+                      )}
+                      <span className="text-[11px] font-semibold bg-emerald-50 text-emerald-800 px-2.5 py-0.5 rounded border border-emerald-200">
+                        Membawa {jamaahs.length} Jamaah
+                      </span>
+                    </div>
                   </div>
-                </div>
-              )}
+                )
+              })()}
             </div>
 
             {/* Timeline */}
@@ -744,13 +758,24 @@ function StatusContent() {
                 <div className="space-y-4">
                   {jamaahs.map((jamaah, index) => {
                     const docs = (jamaah as Jamaah & { documents?: Document[] }).documents ?? []
+                    const pic = getGroupPic(group)
+                    const isThisMemberPic =
+                      pic.is_departing &&
+                      (jamaah.relationship_to_pic === 'Diri Sendiri (PIC)' ||
+                        jamaah.id === group.pic_jamaah_id ||
+                        jamaah.full_name?.toLowerCase().trim() === pic.name?.toLowerCase().trim())
+
                     const relationLabel =
-                      jamaah.relationship_to_pic && jamaah.relationship_to_pic !== 'PIC'
+                      jamaah.relationship_to_pic &&
+                      jamaah.relationship_to_pic !== 'PIC' &&
+                      jamaah.relationship_to_pic !== 'Diri Sendiri (PIC)'
                         ? jamaah.relationship_to_pic
-                        : group.pic_jamaah?.id === jamaah.id
+                        : isThisMemberPic
                         ? 'Diri Sendiri (PIC)'
+                        : !pic.is_departing
+                        ? 'Jamaah Terdaftar'
                         : group.type === 'individual'
-                        ? 'Diri Sendiri'
+                        ? 'Diri Sendiri (PIC)'
                         : 'Anggota Rombongan'
                     const isExpanded = expandedJamaahs[jamaah.id] ?? true
                     const ktpRequired = jamaah.birth_date ? isKtpRequired(jamaah.birth_date) : true
