@@ -1287,19 +1287,6 @@ function StatusContent() {
 
                     <div className="space-y-1">
                       <label className="text-xs font-semibold text-slate-700">
-                        Nama Ayah Kandung
-                      </label>
-                      <input
-                        type="text"
-                        value={editForm.father_name}
-                        onChange={(e) => setEditForm({ ...editForm, father_name: e.target.value })}
-                        placeholder="Nama Ayah Kandung"
-                        className="w-full h-9 px-3 border border-slate-300 rounded-md text-sm text-slate-900 font-medium focus:border-emerald-700 focus:outline-none"
-                      />
-                    </div>
-
-                    <div className="space-y-1">
-                      <label className="text-xs font-semibold text-slate-700">
                         NIK (16 Digit)
                       </label>
                       <input
@@ -1378,6 +1365,22 @@ function StatusContent() {
                         placeholder="Contoh: Pegawai Negeri / Wiraswasta"
                         className="w-full h-9 px-3 border border-slate-300 rounded-md text-sm text-slate-900 font-medium focus:border-emerald-700 focus:outline-none"
                       />
+                    </div>
+
+                    <div className="space-y-1 sm:col-span-2 pt-1">
+                      <label className="text-xs font-semibold text-slate-700">
+                        Nama Ayah Kandung (untuk bin / binti)
+                      </label>
+                      <input
+                        type="text"
+                        value={editForm.father_name}
+                        onChange={(e) => setEditForm({ ...editForm, father_name: e.target.value })}
+                        placeholder="Nama lengkap ayah kandung jamaah"
+                        className="w-full h-9 px-3 border border-slate-300 rounded-md text-sm text-slate-900 font-medium focus:border-emerald-700 focus:outline-none"
+                      />
+                      <p className="text-[11px] text-slate-500">
+                        Dibutuhkan untuk penulisan nama di visa & manifes Saudi (contoh: Ahmad bin Abdullah).
+                      </p>
                     </div>
                   </div>
                 </div>

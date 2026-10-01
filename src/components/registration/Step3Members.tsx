@@ -261,16 +261,8 @@ function MemberForm({ member, index, isFirst, canRemove, isExpanded, onToggleExp
               />
             </div>
 
-            {/* Row 4: Nama Ayah Kandung (bin/binti) & Status Pernikahan */}
+            {/* Row 4: Status Pernikahan & Pekerjaan */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <Input
-                label="Nama Ayah Kandung (untuk bin / binti)"
-                id={`father-${member.id}`}
-                placeholder="Nama lengkap ayah kandung"
-                error={errors.father_name?.message}
-                hint="Dibutuhkan untuk penulisan nama di visa & manifes Saudi (bin/binti)."
-                {...register('father_name')}
-              />
               <Select
                 label="Status Pernikahan"
                 id={`marital-${member.id}`}
@@ -279,16 +271,24 @@ function MemberForm({ member, index, isFirst, canRemove, isExpanded, onToggleExp
                 error={errors.marital_status?.message}
                 {...register('marital_status')}
               />
-            </div>
-
-            {/* Row 5: Pekerjaan */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Input
                 label="Pekerjaan"
                 id={`occupation-${member.id}`}
                 placeholder="Pelajar, Guru, Wiraswasta, dll."
                 error={errors.occupation?.message}
                 {...register('occupation')}
+              />
+            </div>
+
+            {/* Row 5: Nama Ayah Kandung (bin/binti untuk visa & manifes Saudi) */}
+            <div className="grid grid-cols-1 gap-4 pt-1">
+              <Input
+                label="Nama Ayah Kandung (untuk bin / binti)"
+                id={`father-${member.id}`}
+                placeholder="Nama lengkap ayah kandung jamaah"
+                error={errors.father_name?.message}
+                hint="Dibutuhkan untuk penulisan nama di visa & manifes Arab Saudi (contoh: Ahmad bin Abdullah)."
+                {...register('father_name')}
               />
             </div>
           </div>
