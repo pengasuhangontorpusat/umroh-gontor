@@ -5,7 +5,7 @@ import { useRegistration, JamaahDraft } from '@/contexts/RegistrationContext'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Select } from '@/components/ui/Select'
-import { ChevronDown, ChevronUp, Plus, Trash2, User, AlertCircle } from 'lucide-react'
+import { ChevronDown, ChevronUp, Plus, Trash2, User, AlertCircle, MapPin, FileText, HeartPulse } from 'lucide-react'
 import { cn, isKtpRequired, calculateAge } from '@/lib/utils'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -183,174 +183,191 @@ function MemberForm({ member, index, isFirst, canRemove, isExpanded, onToggleExp
 
       {/* Form */}
       {isExpanded && (
-        <form onSubmit={handleSubmit(onSave)} className="px-4 pb-4 pt-2 border-t border-[var(--border)] space-y-4">
-          {/* Row 1: Nama Lengkap & Hubungan dengan PIC */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <Input
-              label="Nama Lengkap"
-              id={`name-${member.id}`}
-              required
-              placeholder="Sesuai KTP/Paspor"
-              error={errors.full_name?.message}
-              {...register('full_name')}
-            />
-            <Select
-              label="Hubungan dengan PIC (Penanggung Jawab)"
-              id={`relationship-${member.id}`}
-              placeholder="Pilih Hubungan"
-              options={RELATIONSHIP_OPTIONS}
-              error={errors.relationship_to_pic?.message}
-              {...register('relationship_to_pic')}
-            />
-          </div>
-
-          {/* Row 2: Jenis Kelamin & Tempat Lahir */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <Select
-              label="Jenis Kelamin"
-              id={`gender-${member.id}`}
-              required
-              placeholder="Pilih"
-              options={GENDER_OPTIONS}
-              error={errors.gender?.message}
-              {...register('gender')}
-            />
-            <Input
-              label="Tempat Lahir"
-              id={`birth-place-${member.id}`}
-              required
-              placeholder="Kota tempat lahir"
-              error={errors.birth_place?.message}
-              {...register('birth_place')}
-            />
-          </div>
-
-          {/* Row 3: Tanggal Lahir & NIK */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="flex flex-col gap-1.5">
-              <Input
-                label="Tanggal Lahir"
-                id={`birth-date-${member.id}`}
-                type="date"
-                required
-                error={errors.birth_date?.message}
-                {...register('birth_date')}
-              />
-              {age !== null && (
-                <p className="text-xs text-[var(--text-muted)]">{age} tahun</p>
-              )}
+        <form onSubmit={handleSubmit(onSave)} className="px-5 pb-5 pt-3 border-t border-[var(--border)] space-y-6">
+          {/* BLOK 1: Data Identitas & Kependudukan */}
+          <div className="bg-slate-50/70 p-4 rounded-xl border border-slate-200 space-y-4">
+            <div className="flex items-center gap-2 border-b border-slate-200 pb-2">
+              <User className="w-4 h-4 text-emerald-700" />
+              <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wide">
+                1. Data Identitas & Kependudukan
+              </h4>
             </div>
-            <Input
-              label={`NIK${ktpRequired ? '' : ' (opsional — di bawah 17 tahun)'}`}
-              id={`nik-${member.id}`}
-              required={ktpRequired}
-              placeholder="16 digit NIK"
-              maxLength={16}
-              error={errors.nik?.message}
-              hint={!ktpRequired ? 'Jamaah di bawah 17 tahun tidak wajib mengisi NIK.' : undefined}
-              {...register('nik')}
-            />
-          </div>
 
-          {/* Row 4: Nama Ayah */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <Input
-              label="Nama Ayah"
-              id={`father-${member.id}`}
-              placeholder="Nama lengkap ayah"
-              error={errors.father_name?.message}
-              {...register('father_name')}
-            />
-          </div>
-
-          {/* Row 3 */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <Select
-              label="Status Pernikahan"
-              id={`marital-${member.id}`}
-              placeholder="Pilih"
-              options={MARITAL_OPTIONS}
-              error={errors.marital_status?.message}
-              {...register('marital_status')}
-            />
-            <Input
-              label="Pekerjaan"
-              id={`occupation-${member.id}`}
-              placeholder="Pelajar, Guru, dll."
-              error={errors.occupation?.message}
-              {...register('occupation')}
-            />
-          </div>
-
-          {/* Phone */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <Input
-              label="Nomor HP"
-              id={`phone-${member.id}`}
-              type="tel"
-              placeholder="08xxxxxxxxxx"
-              error={errors.phone?.message}
-              {...register('phone')}
-            />
-            {!isFirst && (
+            {/* Row 1: Nama Lengkap & Hubungan dengan PIC */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <Input
+                label="Nama Lengkap"
+                id={`name-${member.id}`}
+                required
+                placeholder="Sesuai KTP/Paspor"
+                error={errors.full_name?.message}
+                {...register('full_name')}
+              />
               <Select
-                label="Hubungan dengan Pendaftar"
-                id={`relation-${member.id}`}
-                placeholder="Pilih hubungan"
+                label="Hubungan dengan PIC (Penanggung Jawab)"
+                id={`relationship-${member.id}`}
+                placeholder="Pilih Hubungan"
                 options={RELATIONSHIP_OPTIONS}
                 error={errors.relationship_to_pic?.message}
                 {...register('relationship_to_pic')}
               />
-            )}
+            </div>
+
+            {/* Row 2: Jenis Kelamin & Tempat Lahir */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <Select
+                label="Jenis Kelamin"
+                id={`gender-${member.id}`}
+                required
+                placeholder="Pilih"
+                options={GENDER_OPTIONS}
+                error={errors.gender?.message}
+                {...register('gender')}
+              />
+              <Input
+                label="Tempat Lahir"
+                id={`birth-place-${member.id}`}
+                required
+                placeholder="Kota tempat lahir"
+                error={errors.birth_place?.message}
+                {...register('birth_place')}
+              />
+            </div>
+
+            {/* Row 3: Tanggal Lahir & NIK */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="flex flex-col gap-1.5">
+                <Input
+                  label="Tanggal Lahir"
+                  id={`birth-date-${member.id}`}
+                  type="date"
+                  required
+                  error={errors.birth_date?.message}
+                  {...register('birth_date')}
+                />
+                {age !== null && (
+                  <p className="text-xs text-[var(--text-muted)] font-medium">{age} tahun</p>
+                )}
+              </div>
+              <Input
+                label={`NIK${ktpRequired ? '' : ' (opsional — di bawah 17 tahun)'}`}
+                id={`nik-${member.id}`}
+                required={ktpRequired}
+                placeholder="16 digit NIK"
+                maxLength={16}
+                error={errors.nik?.message}
+                hint={!ktpRequired ? 'Jamaah di bawah 17 tahun tidak wajib mengisi NIK.' : undefined}
+                {...register('nik')}
+              />
+            </div>
+
+            {/* Row 4: Nama Ayah Kandung (bin/binti) & Status Pernikahan */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <Input
+                label="Nama Ayah Kandung (untuk bin / binti)"
+                id={`father-${member.id}`}
+                placeholder="Nama lengkap ayah kandung"
+                error={errors.father_name?.message}
+                hint="Dibutuhkan untuk penulisan nama di visa & manifes Saudi (bin/binti)."
+                {...register('father_name')}
+              />
+              <Select
+                label="Status Pernikahan"
+                id={`marital-${member.id}`}
+                placeholder="Pilih"
+                options={MARITAL_OPTIONS}
+                error={errors.marital_status?.message}
+                {...register('marital_status')}
+              />
+            </div>
+
+            {/* Row 5: Pekerjaan */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <Input
+                label="Pekerjaan"
+                id={`occupation-${member.id}`}
+                placeholder="Pelajar, Guru, Wiraswasta, dll."
+                error={errors.occupation?.message}
+                {...register('occupation')}
+              />
+            </div>
           </div>
 
-          {/* Address */}
-          <div>
-            <label className="text-sm font-medium text-[var(--text-primary)] block mb-1.5">
-              Alamat
-            </label>
-            <textarea
-              className="w-full rounded-[var(--radius-md)] border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 font-medium placeholder:text-slate-400 resize-none focus:outline-none focus:border-emerald-700 focus:ring-1 focus:ring-emerald-700 shadow-xs"
-              rows={2}
-              placeholder="Alamat lengkap sesuai KTP"
-              {...register('address')}
-            />
+          {/* BLOK 2: Kontak & Alamat Domisili */}
+          <div className="bg-slate-50/70 p-4 rounded-xl border border-slate-200 space-y-4">
+            <div className="flex items-center gap-2 border-b border-slate-200 pb-2">
+              <MapPin className="w-4 h-4 text-emerald-700" />
+              <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wide">
+                2. Kontak & Alamat Domisili
+              </h4>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <Input
+                label="Nomor HP / WhatsApp"
+                id={`phone-${member.id}`}
+                type="tel"
+                placeholder="08xxxxxxxxxx"
+                error={errors.phone?.message}
+                {...register('phone')}
+              />
+            </div>
+
+            <div>
+              <label className="text-sm font-medium text-[var(--text-primary)] block mb-1.5">
+                Alamat Lengkap Sesuai KTP
+              </label>
+              <textarea
+                className="w-full rounded-[var(--radius-md)] border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 font-medium placeholder:text-slate-400 resize-none focus:outline-none focus:border-emerald-700 focus:ring-1 focus:ring-emerald-700 shadow-xs"
+                rows={2}
+                placeholder="Alamat lengkap (Jalan, No. Rumah, RT/RW)"
+                {...register('address')}
+              />
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <Input
+                label="Provinsi"
+                id={`province-${member.id}`}
+                placeholder="Contoh: Jawa Timur"
+                {...register('province')}
+              />
+              <Input
+                label="Kabupaten / Kota"
+                id={`city-${member.id}`}
+                placeholder="Contoh: Ponorogo"
+                {...register('city')}
+              />
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <Input
+                label="Kecamatan"
+                id={`district-${member.id}`}
+                placeholder="Contoh: Mlarak"
+                {...register('district')}
+              />
+              <Input
+                label="Kelurahan / Desa"
+                id={`village-${member.id}`}
+                placeholder="Contoh: Gontor"
+                {...register('village')}
+              />
+            </div>
           </div>
 
-          {/* Province/City */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <Input
-              label="Provinsi"
-              id={`province-${member.id}`}
-              placeholder="Jawa Timur"
-              {...register('province')}
-            />
-            <Input
-              label="Kabupaten/Kota"
-              id={`city-${member.id}`}
-              placeholder="Ponorogo"
-              {...register('city')}
-            />
-          </div>
+          {/* BLOK 3: Data Paspor */}
+          <div className="bg-slate-50/70 p-4 rounded-xl border border-slate-200 space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+              <div className="flex items-center gap-2">
+                <FileText className="w-4 h-4 text-emerald-700" />
+                <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wide">
+                  3. Data Paspor
+                </h4>
+              </div>
+              <span className="text-[11px] text-slate-500">Dapat dilengkapi setelah mendaftar</span>
+            </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <Input
-              label="Kecamatan"
-              id={`district-${member.id}`}
-              placeholder="Mlarak"
-              {...register('district')}
-            />
-            <Input
-              label="Kelurahan/Desa"
-              id={`village-${member.id}`}
-              placeholder="Gontor"
-              {...register('village')}
-            />
-          </div>
-
-          {/* Passport */}
-          <div className="border-t border-[var(--border)] pt-4">
-            <p className="text-sm font-medium text-[var(--text-primary)] mb-3">Data Paspor</p>
             <Select
               label="Status Paspor"
               id={`passport-status-${member.id}`}
@@ -359,18 +376,18 @@ function MemberForm({ member, index, isFirst, canRemove, isExpanded, onToggleExp
             />
 
             {passportStatus === 'has_passport' && (
-              <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="pt-2 grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <Input
                   label="Nomor Paspor"
                   id={`passport-no-${member.id}`}
-                  placeholder="A1234567"
+                  placeholder="Contoh: A1234567"
                   error={errors.passport_number?.message}
                   {...register('passport_number')}
                 />
                 <Input
-                  label="Tempat Penerbitan"
+                  label="Tempat Penerbitan (Kantor Imigrasi)"
                   id={`passport-place-${member.id}`}
-                  placeholder="Jakarta"
+                  placeholder="Contoh: Jakarta Selatan, Surabaya, Madiun"
                   {...register('passport_issue_place')}
                 />
                 <Input
@@ -390,71 +407,16 @@ function MemberForm({ member, index, isFirst, canRemove, isExpanded, onToggleExp
             )}
           </div>
 
-          {/* Kesehatan & Kebutuhan Khusus / Disabilitas */}
-          <div className="border-t border-[var(--border)] pt-4 space-y-4">
-            <p className="text-sm font-semibold text-[var(--text-primary)]">
-              Kesehatan & Kebutuhan Khusus
-            </p>
-
-            <div className="p-4 bg-slate-50 rounded-xl border border-[var(--border)] space-y-3">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div>
-                  <p className="text-sm font-medium text-[var(--text-primary)]">
-                    Apakah jamaah memiliki kebutuhan khusus / disabilitas?
-                  </p>
-                  <p className="text-xs text-[var(--text-muted)]">
-                    Contoh: Pengguna kursi roda, tunanetra, pendampingan khusus, dsb.
-                  </p>
-                </div>
-                <div className="flex items-center gap-4 bg-white px-3 py-1.5 rounded-lg border border-[var(--border)]">
-                  <label className="flex items-center gap-2 text-sm cursor-pointer font-medium text-[var(--text-primary)]">
-                    <input
-                      type="radio"
-                      name={`has_disability_${member.id}`}
-                      checked={!hasDisability}
-                      onChange={() => setValue('has_disability', false)}
-                      className="text-[var(--primary)] focus:ring-[var(--primary)]"
-                    />
-                    <span>Tidak</span>
-                  </label>
-                  <label className="flex items-center gap-2 text-sm cursor-pointer font-medium text-amber-700">
-                    <input
-                      type="radio"
-                      name={`has_disability_${member.id}`}
-                      checked={hasDisability}
-                      onChange={() => setValue('has_disability', true)}
-                      className="text-[var(--primary)] focus:ring-[var(--primary)]"
-                    />
-                    <span>Ya, Ada</span>
-                  </label>
-                </div>
-              </div>
-
-              {hasDisability && (
-                <div className="pt-3 border-t border-[var(--border)] space-y-1">
-                  <label className="block text-xs font-semibold text-[var(--text-primary)]">
-                    Rincian Kebutuhan Khusus / Bantuan <span className="text-red-500">*</span>
-                  </label>
-                  <textarea
-                    rows={2}
-                    placeholder="Contoh: Memerlukan kursi roda selama di bandara & thawaf, pendampingan saat mobilisasi, dsb."
-                    className="w-full px-3 py-2 text-sm text-slate-900 font-medium placeholder:text-slate-400 border border-slate-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-emerald-700 focus:border-emerald-700 bg-white shadow-xs"
-                    {...register('disability_description')}
-                  />
-                  <p className="text-[11px] text-[var(--text-muted)]">
-                    Data ini memudahkan panitia dan muassasah Saudi menyediakan fasilitas bandara & hotel.
-                  </p>
-                </div>
-              )}
+          {/* BLOK 4: Kesehatan & Perlengkapan */}
+          <div className="bg-slate-50/70 p-4 rounded-xl border border-slate-200 space-y-4">
+            <div className="flex items-center gap-2 border-b border-slate-200 pb-2">
+              <HeartPulse className="w-4 h-4 text-emerald-700" />
+              <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wide">
+                4. Perlengkapan & Catatan Kesehatan
+              </h4>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <Input
-                label="Riwayat Penyakit (Opsional)"
-                id={`medical-${member.id}`}
-                placeholder="Contoh: Asma, Diabetes, Hipertensi"
-                {...register('medical_history')}
-              />
               <Select
                 label="Ukuran Seragam / Batik"
                 id={`cloth-${member.id}`}
@@ -468,6 +430,62 @@ function MemberForm({ member, index, isFirst, canRemove, isExpanded, onToggleExp
                 ]}
                 {...register('clothing_size')}
               />
+              <Input
+                label="Riwayat Penyakit (Opsional)"
+                id={`medical-${member.id}`}
+                placeholder="Contoh: Asma, Alergi antibiotik"
+                {...register('medical_history')}
+              />
+            </div>
+
+            {/* Disabilitas Checkbox */}
+            <div className="p-3 bg-white rounded-lg border border-slate-200 space-y-2">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs font-semibold text-slate-800">
+                    Apakah jamaah memiliki kebutuhan khusus / disabilitas?
+                  </p>
+                  <p className="text-[11px] text-slate-500">
+                    Contoh: Pengguna kursi roda saat tawaf/sa&apos;i, tunanetra, dsb.
+                  </p>
+                </div>
+                <div className="flex items-center gap-4 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-200">
+                  <label className="flex items-center gap-1.5 text-xs cursor-pointer font-medium text-slate-700">
+                    <input
+                      type="radio"
+                      name={`has_disability_${member.id}`}
+                      checked={!hasDisability}
+                      onChange={() => setValue('has_disability', false)}
+                      className="text-emerald-700 focus:ring-emerald-600"
+                    />
+                    <span>Tidak</span>
+                  </label>
+                  <label className="flex items-center gap-1.5 text-xs cursor-pointer font-medium text-amber-800">
+                    <input
+                      type="radio"
+                      name={`has_disability_${member.id}`}
+                      checked={hasDisability}
+                      onChange={() => setValue('has_disability', true)}
+                      className="text-emerald-700 focus:ring-emerald-600"
+                    />
+                    <span>Ya, Ada</span>
+                  </label>
+                </div>
+              </div>
+
+              {hasDisability && (
+                <div className="pt-2 border-t border-slate-100 space-y-1">
+                  <label className="block text-xs font-semibold text-slate-800">
+                    Rincian Bantuan yang Diperlukan:
+                  </label>
+                  <textarea
+                    rows={2}
+                    placeholder="Contoh: Memerlukan kursi roda selama di bandara & thawaf..."
+                    className="w-full px-3 py-2 text-xs text-slate-900 font-medium placeholder:text-slate-400 border border-amber-300 rounded-lg focus:outline-none focus:border-emerald-700 bg-amber-50/40"
+                    {...register('disability_description')}
+                  />
+                </div>
+              )}
             </div>
           </div>
 
