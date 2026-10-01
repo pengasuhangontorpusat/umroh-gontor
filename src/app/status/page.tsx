@@ -11,6 +11,12 @@ import {
   MaritalStatus,
 } from '@/types'
 import {
+  RegistrationHistoryItem,
+  getRegistrationHistory,
+  saveRegistrationHistory,
+  clearRegistrationHistory,
+} from '@/contexts/RegistrationContext'
+import {
   GroupStatusBadge,
   DocumentStatusBadge,
   PaymentStatusBadge,
@@ -118,6 +124,13 @@ function StatusContent() {
     paymentId?: string
   } | null>(null)
 
+  // Registration history saved on this device
+  const [deviceHistory, setDeviceHistory] = useState<RegistrationHistoryItem[]>([])
+
+  useEffect(() => {
+    setDeviceHistory(getRegistrationHistory())
+  }, [])
+
   useEffect(() => {
     if (kode) fetchStatus(kode)
   }, [kode]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -145,6 +158,21 @@ function StatusContent() {
       setJamaahs(fetchedJamaahs)
       setPayments((data.payments ?? []) as Payment[])
 
+      // Save code to device history so user can revisit without retyping
+      if (fetchedGroup.registration_code) {
+        const picName =
+          fetchedGroup.pic_jamaah?.full_name ||
+          fetchedJamaahs[0]?.full_name ||
+          ''
+        saveRegistrationHistory({
+          code: fetchedGroup.registration_code,
+          picName,
+          memberCount: fetchedJamaahs.length,
+          date: fetchedGroup.created_at || new Date().toISOString(),
+        })
+        setDeviceHistory(getRegistrationHistory())
+      }
+
       // Expand all jamaahs by default so user sees everything clearly
       const initialExpanded: Record<string, boolean> = {}
       fetchedJamaahs.forEach((j) => {
@@ -163,6 +191,16 @@ function StatusContent() {
   function handleSearch(e: React.FormEvent) {
     e.preventDefault()
     if (inputKode.trim()) setKode(inputKode.trim())
+  }
+
+  function handleSelectHistory(item: RegistrationHistoryItem) {
+    setInputKode(item.code)
+    setKode(item.code)
+  }
+
+  function handleClearHistory() {
+    clearRegistrationHistory()
+    setDeviceHistory([])
   }
 
   function copyRegistrationCode() {
@@ -435,6 +473,52 @@ function StatusContent() {
             Cek Status
           </Button>
         </form>
+
+        {/* Device Registration History Chips */}
+        {deviceHistory.length > 0 && (
+          <div className="p-3.5 bg-white border border-[var(--border)] rounded-[var(--radius-lg)] shadow-xs space-y-2.5">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-[var(--text-secondary)] flex items-center gap-1.5">
+                <Clock className="w-3.5 h-3.5 text-emerald-700" />
+                Riwayat Pendaftaran di Perangkat Ini:
+              </span>
+              <button
+                type="button"
+                onClick={handleClearHistory}
+                className="text-[11px] text-[var(--text-muted)] hover:text-red-600 transition-colors cursor-pointer"
+              >
+                Hapus Riwayat
+              </button>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {deviceHistory.map((item) => {
+                const isSelected = inputKode === item.code
+                return (
+                  <button
+                    key={item.code}
+                    type="button"
+                    onClick={() => handleSelectHistory(item)}
+                    className={`px-3 py-1.5 rounded-[var(--radius-md)] text-xs border transition-all text-left flex items-center gap-2 cursor-pointer ${
+                      isSelected
+                        ? 'bg-emerald-50 border-emerald-500 text-emerald-800 font-semibold shadow-xs ring-1 ring-emerald-400'
+                        : 'bg-[var(--surface)] border-[var(--border)] text-[var(--text-secondary)] hover:border-emerald-400 hover:bg-emerald-50/50'
+                    }`}
+                  >
+                    <span className="font-mono font-bold text-[var(--text-primary)]">{item.code}</span>
+                    {item.picName && (
+                      <span className="text-[11px] text-[var(--text-muted)] border-l border-[var(--border)] pl-2">
+                        {item.picName}
+                      </span>
+                    )}
+                    <span className="text-[10px] text-[var(--text-muted)] bg-white px-1.5 py-0.5 rounded border border-[var(--border)]">
+                      {item.memberCount} jamaah
+                    </span>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        )}
 
         {/* Error message */}
         {error && (

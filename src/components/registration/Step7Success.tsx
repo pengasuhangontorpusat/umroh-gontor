@@ -1,14 +1,25 @@
 'use client'
 
-import { useRegistration } from '@/contexts/RegistrationContext'
+import { useRegistration, saveRegistrationHistory } from '@/contexts/RegistrationContext'
 import { Button } from '@/components/ui/Button'
 import Link from 'next/link'
 import { CheckCircle2, Copy } from 'lucide-react'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 
 export function Step7Success() {
   const { draft } = useRegistration()
   const [copied, setCopied] = useState(false)
+
+  useEffect(() => {
+    if (draft.registration_code) {
+      saveRegistrationHistory({
+        code: draft.registration_code,
+        picName: draft.pic_name,
+        memberCount: draft.members.length,
+        date: new Date().toISOString(),
+      })
+    }
+  }, [draft.registration_code, draft.pic_name, draft.members.length])
 
   function handleCopy() {
     navigator.clipboard.writeText(draft.registration_code)

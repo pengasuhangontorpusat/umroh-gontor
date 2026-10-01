@@ -1,7 +1,47 @@
 'use client'
 
-import { createContext, useContext, useState, useCallback, ReactNode } from 'react'
+import { createContext, useContext, useState, useEffect, useRef, useCallback, ReactNode } from 'react'
 import { RegistrationType, PaymentType, DocumentType } from '@/types'
+
+export const DRAFT_STORAGE_KEY = 'umroh_gontor_registration_draft_v1'
+export const HISTORY_STORAGE_KEY = 'umroh_gontor_reg_codes_history'
+
+export interface RegistrationHistoryItem {
+  code: string
+  picName: string
+  memberCount: number
+  date: string
+}
+
+export function saveRegistrationHistory(item: RegistrationHistoryItem) {
+  if (typeof window === 'undefined' || !item.code) return
+  try {
+    const raw = localStorage.getItem(HISTORY_STORAGE_KEY)
+    const list: RegistrationHistoryItem[] = raw ? JSON.parse(raw) : []
+    const filtered = list.filter((i) => i.code !== item.code)
+    filtered.unshift(item)
+    localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(filtered.slice(0, 10)))
+  } catch (err) {
+    console.warn('Failed to save registration history to localStorage:', err)
+  }
+}
+
+export function getRegistrationHistory(): RegistrationHistoryItem[] {
+  if (typeof window === 'undefined') return []
+  try {
+    const raw = localStorage.getItem(HISTORY_STORAGE_KEY)
+    return raw ? JSON.parse(raw) : []
+  } catch {
+    return []
+  }
+}
+
+export function clearRegistrationHistory() {
+  if (typeof window === 'undefined') return
+  try {
+    localStorage.removeItem(HISTORY_STORAGE_KEY)
+  } catch {}
+}
 
 export interface JamaahDraft {
   id: string // local temp id
@@ -102,6 +142,9 @@ interface RegistrationContextType {
   draft: RegistrationDraft
   pendingFiles: Record<string, Partial<Record<DocumentType, File>>>
   paymentProofFile: File | null
+  hasRestoredDraft: boolean
+  dismissRestoredNotice: () => void
+  clearDraftAndReset: () => void
   setDraft: (updates: Partial<RegistrationDraft>) => void
   setMemberFile: (memberId: string, docType: DocumentType, file: File | null) => void
   setPaymentProofFile: (file: File | null) => void
@@ -120,6 +163,58 @@ export function RegistrationProvider({ children }: { children: ReactNode }) {
   const [draft, setDraftState] = useState<RegistrationDraft>(defaultDraft)
   const [pendingFiles, setPendingFiles] = useState<Record<string, Partial<Record<DocumentType, File>>>>({})
   const [paymentProofFile, setPaymentProofFileState] = useState<File | null>(null)
+  const [hasRestoredDraft, setHasRestoredDraft] = useState(false)
+  const isInitialized = useRef(false)
+
+  // Auto-restore draft from localStorage on mount
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    try {
+      const saved = localStorage.getItem(DRAFT_STORAGE_KEY)
+      if (saved) {
+        const parsed = JSON.parse(saved) as RegistrationDraft
+        if (
+          parsed &&
+          (parsed.members?.length > 0 ||
+            parsed.pic_name?.trim() ||
+            parsed.type ||
+            parsed.package_id)
+        ) {
+          // If the user already finished (step 7), don't restore wizard
+          if (parsed.step < 7) {
+            setDraftState(parsed)
+            setHasRestoredDraft(true)
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to parse saved draft from localStorage:', e)
+    } finally {
+      isInitialized.current = true
+    }
+  }, [])
+
+  // Auto-save draft changes to localStorage
+  useEffect(() => {
+    if (typeof window === 'undefined' || !isInitialized.current) return
+    try {
+      if (draft.step === 7) {
+        localStorage.removeItem(DRAFT_STORAGE_KEY)
+      } else {
+        const hasData =
+          Boolean(draft.type) ||
+          Boolean(draft.pic_name?.trim()) ||
+          draft.members.length > 0 ||
+          Boolean(draft.package_id) ||
+          Boolean(draft.departure_point_id)
+        if (hasData) {
+          localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(draft))
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to save draft to localStorage:', e)
+    }
+  }, [draft])
 
   const setDraft = useCallback((updates: Partial<RegistrationDraft>) => {
     setDraftState((prev) => ({ ...prev, ...updates }))
@@ -183,11 +278,25 @@ export function RegistrationProvider({ children }: { children: ReactNode }) {
     }))
   }, [])
 
-  const reset = useCallback(() => {
+  const clearDraftAndReset = useCallback(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.removeItem(DRAFT_STORAGE_KEY)
+      } catch {}
+    }
     setDraftState(defaultDraft)
     setPendingFiles({})
     setPaymentProofFileState(null)
+    setHasRestoredDraft(false)
   }, [])
+
+  const dismissRestoredNotice = useCallback(() => {
+    setHasRestoredDraft(false)
+  }, [])
+
+  const reset = useCallback(() => {
+    clearDraftAndReset()
+  }, [clearDraftAndReset])
 
   return (
     <RegistrationContext.Provider
@@ -195,6 +304,9 @@ export function RegistrationProvider({ children }: { children: ReactNode }) {
         draft,
         pendingFiles,
         paymentProofFile,
+        hasRestoredDraft,
+        dismissRestoredNotice,
+        clearDraftAndReset,
         setDraft,
         setMemberFile,
         setPaymentProofFile,

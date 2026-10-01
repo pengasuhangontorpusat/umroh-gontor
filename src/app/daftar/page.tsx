@@ -10,7 +10,7 @@ import { Step5Payment } from '@/components/registration/Step5Payment'
 import { Step6Review } from '@/components/registration/Step6Review'
 import { Step7Success } from '@/components/registration/Step7Success'
 import Link from 'next/link'
-import { ChevronLeft } from 'lucide-react'
+import { ChevronLeft, RotateCcw } from 'lucide-react'
 
 const STEPS = [
   { id: 1, label: 'Jenis' },
@@ -22,7 +22,7 @@ const STEPS = [
 ]
 
 export default function DaftarPage() {
-  const { draft } = useRegistration()
+  const { draft, hasRestoredDraft, dismissRestoredNotice, clearDraftAndReset } = useRegistration()
   const { step } = draft
 
   // Success page - no wizard chrome
@@ -50,6 +50,41 @@ export default function DaftarPage() {
 
       {/* Content */}
       <main className="max-w-3xl mx-auto px-4 sm:px-6 py-8">
+        {/* Restored Draft Alert Banner */}
+        {hasRestoredDraft && (
+          <div className="mb-6 p-4 rounded-[var(--radius-lg)] bg-emerald-50 border border-emerald-200 text-emerald-950 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs animate-fade-in">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-full bg-emerald-100 flex items-center justify-center shrink-0 text-emerald-800">
+                <RotateCcw className="w-4 h-4" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-emerald-950">
+                  Draf Pendaftaran Sebelumnya Dipulihkan
+                </p>
+                <p className="text-xs text-emerald-800/90 mt-0.5">
+                  Data formulir otomatis dimuat kembali dari memori perangkat ini ({draft.members.length} anggota). Anda dapat melanjutkan atau mulai dari awal.
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 w-full sm:w-auto justify-end shrink-0">
+              <button
+                type="button"
+                onClick={clearDraftAndReset}
+                className="text-xs px-3 py-1.5 rounded-[var(--radius-md)] border border-emerald-300 text-emerald-800 hover:bg-emerald-100 font-medium transition-colors cursor-pointer"
+              >
+                Mulai Baru
+              </button>
+              <button
+                type="button"
+                onClick={dismissRestoredNotice}
+                className="text-xs px-3 py-1.5 rounded-[var(--radius-md)] bg-emerald-700 hover:bg-emerald-800 text-white font-medium transition-colors shadow-xs cursor-pointer"
+              >
+                Lanjutkan
+              </button>
+            </div>
+          </div>
+        )}
+
         <div className="animate-fade-in">
           {step === 1 && <Step1Type />}
           {step === 2 && <Step2Pic />}

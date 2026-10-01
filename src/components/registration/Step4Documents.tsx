@@ -7,7 +7,7 @@ import { FileUpload } from '@/components/ui/FileUpload'
 import { DocumentStatusBadge } from '@/components/ui/StatusBadge'
 import { DocumentType, DocumentStatus, DOCUMENT_TYPE_LABELS } from '@/types'
 import { isKtpRequired } from '@/lib/utils'
-import { ChevronDown, ChevronUp } from 'lucide-react'
+import { ChevronDown, ChevronUp, Lock } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface DocumentState {
@@ -49,6 +49,7 @@ function MemberDocs({
   memberId,
   memberName,
   birthDate,
+  passportStatus,
   state,
   onUpload,
 }: {
@@ -56,23 +57,43 @@ function MemberDocs({
   memberId: string
   memberName: string
   birthDate: string
+  passportStatus: string
   state: Partial<Record<DocumentType, DocumentState>>
   onUpload: (docType: DocumentType, file: File) => Promise<void>
 }) {
   const [expanded, setExpanded] = useState(memberIndex === 0)
   const ktpRequired = birthDate ? isKtpRequired(birthDate) : true
+  const isPassportLocked = passportStatus !== 'has_passport'
+  const isPassportInProcess = passportStatus === 'in_process'
 
-  const DOC_TYPES: Array<{ type: DocumentType; required: boolean; note?: string }> = [
+  const DOC_TYPES: Array<{
+    type: DocumentType
+    required: boolean
+    note?: string
+    locked?: boolean
+  }> = [
     { type: 'ktp', required: ktpRequired, note: ktpRequired ? undefined : 'Tidak wajib (di bawah 17 tahun)' },
     { type: 'kk', required: true },
     { type: 'vaksin', required: false, note: 'Dapat dikoordinasikan dengan panitia' },
-    { type: 'paspor', required: false, note: 'Tidak diwajibkan jika belum memiliki paspor' },
+    {
+      type: 'paspor',
+      required: false,
+      note: isPassportLocked
+        ? isPassportInProcess
+          ? 'Paspor sedang proses (dapat dilengkapi menyusul di menu Cek Status)'
+          : 'Belum ada paspor (dapat dilengkapi menyusul di menu Cek Status)'
+        : 'Wajib lampirkan scan/foto halaman identitas paspor yang jelas',
+      locked: isPassportLocked,
+    },
   ]
 
-  const uploadedCount = DOC_TYPES.filter((d) => state[d.type]?.status !== 'not_uploaded' && state[d.type]?.status !== undefined).length
+  const activeDocs = DOC_TYPES.filter((d) => !d.locked)
+  const uploadedCount = activeDocs.filter(
+    (d) => state[d.type]?.status !== 'not_uploaded' && state[d.type]?.status !== undefined
+  ).length
 
   return (
-    <div className="border border-[var(--border)] rounded-[var(--radius-lg)] bg-white overflow-hidden">
+    <div className="border border-[var(--border)] rounded-[var(--radius-lg)] bg-white overflow-hidden shadow-xs">
       <button
         type="button"
         onClick={() => setExpanded((v) => !v)}
@@ -84,7 +105,10 @@ function MemberDocs({
           </div>
           <div className="text-left">
             <p className="text-sm font-medium text-[var(--text-primary)]">{memberName || `Anggota ${memberIndex + 1}`}</p>
-            <p className="text-xs text-[var(--text-muted)]">{uploadedCount} dari {DOC_TYPES.length} dokumen diunggah</p>
+            <p className="text-xs text-[var(--text-muted)]">
+              {uploadedCount} dari {activeDocs.length} dokumen wajib diunggah
+              {isPassportLocked && ' • Paspor menyusul'}
+            </p>
           </div>
         </div>
         {expanded ? (
@@ -96,24 +120,50 @@ function MemberDocs({
 
       {expanded && (
         <div className="border-t border-[var(--border)] px-4 pb-4 pt-4 space-y-5">
-          {DOC_TYPES.map(({ type, required, note }) => (
+          {DOC_TYPES.map(({ type, required, note, locked }) => (
             <div key={type}>
               <div className="flex items-center gap-2 mb-2">
                 <p className="text-sm font-medium text-[var(--text-primary)]">
                   {DOCUMENT_TYPE_LABELS[type]}
                   {required && <span className="text-[var(--danger)] ml-0.5">*</span>}
                 </p>
-                {state[type] && <DocumentStatusBadge status={state[type]!.status} />}
+                {locked ? (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-amber-100 text-amber-800 border border-amber-200">
+                    <Lock className="w-3 h-3" />
+                    {isPassportInProcess ? 'Sedang Diproses' : 'Belum Ada Paspor'}
+                  </span>
+                ) : (
+                  state[type] && <DocumentStatusBadge status={state[type]!.status} />
+                )}
               </div>
               {note && (
                 <p className="text-xs text-[var(--text-muted)] mb-2">{note}</p>
               )}
-              <FileUpload
-                id={`${memberId}-${type}`}
-                currentFileName={state[type]?.fileName}
-                currentFileUrl={state[type]?.fileUrl}
-                onFileSelect={(file) => onUpload(type, file)}
-              />
+              {locked ? (
+                <div className="flex items-start gap-3 p-3.5 rounded-[var(--radius-md)] bg-amber-50/80 border border-amber-200/80 text-amber-900">
+                  <div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center shrink-0 text-amber-700 mt-0.5">
+                    <Lock className="w-4 h-4" />
+                  </div>
+                  <div className="text-xs leading-relaxed">
+                    <p className="font-semibold text-amber-900">
+                      {isPassportInProcess ? 'Paspor Sedang Diproses' : 'Belum Memiliki Paspor'}
+                    </p>
+                    <p className="text-amber-800/90 mt-0.5">
+                      Unggah dokumen paspor dikunci untuk anggota ini karena berstatus{' '}
+                      <strong>{isPassportInProcess ? 'Sedang Diproses' : 'Belum Memiliki Paspor'}</strong>. Dokumen paspor
+                      dapat Anda lengkapi menyusul melalui halaman <strong>Cek Status Pendaftaran</strong> setelah buku paspor
+                      diterbitkan oleh pihak Imigrasi.
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <FileUpload
+                  id={`${memberId}-${type}`}
+                  currentFileName={state[type]?.fileName}
+                  currentFileUrl={state[type]?.fileUrl}
+                  onFileSelect={(file) => onUpload(type, file)}
+                />
+              )}
             </div>
           ))}
         </div>
@@ -163,6 +213,7 @@ export function Step4Documents() {
             memberId={member.id}
             memberName={member.full_name}
             birthDate={member.birth_date}
+            passportStatus={member.passport_status}
             state={docStates[member.id] ?? {}}
             onUpload={(docType, file) => handleUpload(member.id, docType, file)}
           />

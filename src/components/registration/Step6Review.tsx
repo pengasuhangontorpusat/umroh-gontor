@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { useRegistration } from '@/contexts/RegistrationContext'
+import { useRegistration, saveRegistrationHistory } from '@/contexts/RegistrationContext'
 import { Button } from '@/components/ui/Button'
 import { formatCurrency, formatDateShort, generateIdempotencyKey } from '@/lib/utils'
 import { AlertCircle, CheckCircle2, Users, MapPin, CreditCard } from 'lucide-react'
@@ -139,6 +139,15 @@ export function Step6Review() {
             console.warn(`[upload] file ${task.file.name} error:`, uploadErr)
           }
         }
+      }
+
+      if (data.registration_code) {
+        saveRegistrationHistory({
+          code: data.registration_code,
+          picName: draft.pic_name,
+          memberCount: draft.members.length,
+          date: new Date().toISOString(),
+        })
       }
 
       setDraft({
