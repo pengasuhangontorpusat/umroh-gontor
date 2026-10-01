@@ -1,36 +1,85 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Portal Pendaftaran Umrah 100 Tahun Gontor
 
-## Getting Started
+Aplikasi web portal resmi pendaftaran jamaah umrah dalam rangka Peringatan 100 Tahun Pondok Modern Darussalam Gontor.
 
-First, run the development server:
+---
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+## 🌟 Fitur Utama
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### 1. POV User / Jamaah
+- **Alur Pendaftaran Multi-Step (7 Langkah)**:
+  - Step 1: Pilihan Jenis Pendaftaran (Mandiri / Keluarga).
+  - Step 2: Data PIC / Penanggung Jawab & Titik Keberangkatan.
+  - Step 3: Formulir Lengkap Data Jamaah (dengan validasi NIK 16 digit, riwayat kesehatan, ukuran batik, dan opsi disabilitas/kursi roda).
+  - Step 4: Unggah Dokumen (KTP, KK, Paspor, Kartu Vaksin Meningitis/Polio).
+  - Step 5: Pembayaran (Pilihan Bayar DP / Pelunasan dengan kalkulasi otomatis jumlah anggota keluarga).
+  - Step 6: Tinjau & Konfirmasi Data.
+  - Step 7: Penerbitan Kode Registrasi Unik (`UMR-2026-xxxx`).
+- **Pelacakan Status Jamaah (`/status`)**:
+  - Cek progres verifikasi dokumen, pembayaran, dan keberangkatan secara real-time via kode pendaftaran.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### 2. POV Admin Panel (`/admin`)
+- **Dashboard & Statistik**: Ringkasan jumlah pendaftar, kuota per embarkasi, dan status verifikasi.
+- **Manajemen Pendaftaran (`/admin/pendaftaran`)**:
+  - Filter status (Terkirim, Dalam Pemeriksaan, Perlu Revisi, Terverifikasi, Siap Berangkat, Selesai).
+  - Verifikasi dokumen interaktif (Setujui, Minta Revisi dengan catatan, Tolak).
+  - Verifikasi pembayaran (Diterima / Ditolak).
+- **Manifest Keberangkatan (`/admin/manifest`)**:
+  - Tabel manifest lengkap data jamaah, kebutuhan kursi roda/disabilitas, ukuran seragam, dan status paspor.
+  - Ekspor ke Excel (.xlsx) dan CSV.
+- **Pengaturan Master Data (`/admin/pengaturan`)**:
+  - CRUD Titik Keberangkatan (Jakarta, Surabaya, Solo/Gontor, Medan, Makassar, dsb).
+  - CRUD Paket Kamar & Harga (Quad, Triple, Double).
+  - Rekening Panitia & Parameter Pendaftaran.
+- **Audit Log (`/admin/audit-log`)**: Riwayat aktivitas perubahan status dan verifikasi panitia.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+---
 
-## Learn More
+## 🛠️ Tech Stack
 
-To learn more about Next.js, take a look at the following resources:
+- **Framework**: [Next.js](https://nextjs.org/) (App Router, Turbopack, React 19)
+- **Database & Auth**: [Supabase](https://supabase.com/) (PostgreSQL dengan Row Level Security)
+- **Styling**: Tailwind CSS & CSS Design Tokens (Institutional Green `#14532d` theme)
+- **Icons**: Lucide React
+- **Validation**: Zod & React Hook Form
+- **Exporting**: xlsx (SheetJS)
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+---
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## 🚀 Memulai (Local Development)
 
-## Deploy on Vercel
+1. **Clone repository**:
+   ```bash
+   git clone https://github.com/pengasuhangontorpusat/umroh-gontor.git
+   cd umroh-gontor
+   ```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+2. **Install dependensi**:
+   ```bash
+   npm install
+   ```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+3. **Setup Environment**:
+   Salin `.env.example` ke `.env.local`:
+   ```bash
+   cp .env.example .env.local
+   ```
+   Isi konfigurasi Supabase Anda di `.env.local`.
+
+4. **Jalankan database migration di Supabase SQL Editor**:
+   - `supabase/migrations/001_initial_schema.sql`
+   - `supabase/migrations/002_rls_policies.sql`
+   - `supabase/migrations/003_add_disability_to_jamaahs.sql`
+
+5. **Jalankan server pengembangan**:
+   ```bash
+   npm run dev
+   ```
+   Buka [http://localhost:3000](http://localhost:3000) di browser Anda.
+
+---
+
+## 📁 Dokumentasi Terkait
+- [PRD (Product Requirement Document)](docs/PRD.md)
+- [Design Guidelines & UI Tokens](docs/DESAIN.md)
+- [Panduan Setup Google Drive API](docs/GOOGLE_DRIVE_SETUP.md)

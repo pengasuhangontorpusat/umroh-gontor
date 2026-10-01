@@ -1,69 +1,313 @@
-import Image from "next/image";
+import Link from 'next/link'
+import { MapPin, FileText, CreditCard, CheckCircle, ChevronRight, Phone, Mail } from 'lucide-react'
+import { Button } from '@/components/ui/Button'
+import { createClient } from '@/lib/supabase/server'
 
-export default function Home() {
+async function getDeparturePoints() {
+  const supabase = await createClient()
+  const { data } = await supabase
+    .from('departure_points')
+    .select('*')
+    .eq('is_active', true)
+    .order('sort_order')
+  return data ?? []
+}
+
+async function getActivePackage() {
+  const supabase = await createClient()
+  const { data } = await supabase
+    .from('packages')
+    .select('*')
+    .eq('is_active', true)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .single()
+  return data
+}
+
+export default async function HomePage() {
+  const [departurePoints, activePackage] = await Promise.all([
+    getDeparturePoints(),
+    getActivePackage(),
+  ])
+
+  const price = activePackage?.price ?? 37200000
+  const dpAmount = activePackage?.dp_amount ?? 5000000
+
+  const REQUIRED_DOCS = [
+    { icon: '📄', label: 'KTP', note: 'Wajib untuk jamaah usia 17 tahun ke atas' },
+    { icon: '📋', label: 'Kartu Keluarga', note: 'Untuk semua anggota keluarga' },
+    {
+      icon: '💉',
+      label: 'Kartu Vaksin Meningitis & Polio',
+      note: 'Dapat dikoordinasikan dengan panitia',
+    },
+    { icon: '📘', label: 'Paspor', note: 'Jika belum memiliki, dapat ditandai dan dilengkapi kemudian' },
+  ]
+
+  const REGISTRATION_STEPS = [
+    { step: '01', label: 'Pilih Jenis', desc: 'Individu atau bersama keluarga' },
+    { step: '02', label: 'Data Diri', desc: 'Isi informasi pribadi setiap jamaah' },
+    { step: '03', label: 'Dokumen', desc: 'Unggah KTP, KK, vaksin, dan paspor' },
+    { step: '04', label: 'Pembayaran', desc: 'Bayar penuh atau DP' },
+    { step: '05', label: 'Konfirmasi', desc: 'Tinjau dan kirim pendaftaran' },
+  ]
+
+  const FAQ = [
+    {
+      q: 'Apakah bisa mendaftar tanpa paspor?',
+      a: 'Ya. Pilih opsi "Belum memiliki paspor" saat pengisian data. Paspor dapat dilengkapi setelah pendaftaran.',
+    },
+    {
+      q: 'Apakah anak di bawah 17 tahun wajib menyertakan KTP?',
+      a: 'Tidak. KTP hanya diwajibkan untuk jamaah berusia 17 tahun ke atas.',
+    },
+    {
+      q: 'Bagaimana cara mendaftarkan seluruh keluarga?',
+      a: 'Pilih "Saya mendaftarkan keluarga" saat mulai pendaftaran, lalu tambahkan setiap anggota satu per satu.',
+    },
+    {
+      q: 'Apakah pembayaran DP memastikan tempat?',
+      a: 'Pembayaran DP menunjukkan komitmen pendaftaran. Konfirmasi resmi dilakukan setelah verifikasi data oleh panitia.',
+    },
+    {
+      q: 'Apakah dokumen bisa diunggah belakangan?',
+      a: 'Ya. Pendaftaran dapat dikirim terlebih dahulu dan dokumen dilengkapi kemudian sebelum verifikasi panitia.',
+    },
+  ]
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert h-5 w-[100px]"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the{" "}
-            <code className="rounded bg-black/[.06] px-1.5 py-0.5 font-mono text-[0.9em] dark:bg-white/[.08]">
-              page.tsx
-            </code>{" "}
-            file.
+    <div className="min-h-screen bg-white">
+      {/* ============================================================
+          Header
+          ============================================================ */}
+      <header className="border-b border-[var(--border)] bg-white sticky top-0 z-40">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <div className="w-7 h-7 rounded bg-[var(--primary)] flex items-center justify-center">
+              <span className="text-white text-xs font-bold">G</span>
+            </div>
+            <span className="text-sm font-semibold text-[var(--text-primary)]">
+              Umrah 100 Tahun Gontor
+            </span>
+          </div>
+          <Link href="/daftar">
+            <Button size="sm">Mulai Pendaftaran</Button>
+          </Link>
+        </div>
+      </header>
+
+      {/* ============================================================
+          Hero
+          ============================================================ */}
+      <section className="max-w-5xl mx-auto px-4 sm:px-6 pt-14 pb-12">
+        <div className="max-w-2xl">
+          <p className="text-xs font-medium text-[var(--primary)] uppercase tracking-wider mb-3">
+            Pendaftaran Resmi
+          </p>
+          <h1 className="text-2xl sm:text-3xl font-semibold text-[var(--text-primary)] leading-snug mb-4">
+            Umrah 100 Tahun Gontor
           </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
+          <p className="text-[var(--text-secondary)] text-base leading-relaxed mb-6 max-w-xl">
+            Daftarkan diri Anda atau keluarga untuk program umrah dalam rangka peringatan 100
+            tahun Pondok Modern Darussalam Gontor. Proses pendaftaran dirancang sesederhana
+            mungkin.
+          </p>
+
+          {/* Price info */}
+          <div className="flex flex-col sm:flex-row gap-3 mb-8">
+            <div className="border border-[var(--border)] rounded-[var(--radius-md)] px-4 py-3">
+              <p className="text-xs text-[var(--text-muted)] mb-0.5">Biaya per jamaah</p>
+              <p className="text-lg font-semibold text-[var(--text-primary)]">
+                Rp{price.toLocaleString('id-ID')}
+              </p>
+            </div>
+            <div className="border border-[var(--border)] rounded-[var(--radius-md)] px-4 py-3">
+              <p className="text-xs text-[var(--text-muted)] mb-0.5">DP minimal</p>
+              <p className="text-lg font-semibold text-[var(--text-primary)]">
+                Rp{dpAmount.toLocaleString('id-ID')}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex flex-col sm:flex-row gap-3">
+            <Link href="/daftar">
+              <Button size="lg">
+                Mulai Pendaftaran
+                <ChevronRight className="w-4 h-4" />
+              </Button>
+            </Link>
+            <Link href="/status">
+              <Button variant="outline" size="lg">
+                Cek Status Pendaftaran
+              </Button>
+            </Link>
+          </div>
+        </div>
+      </section>
+
+      {/* Divider */}
+      <div className="border-t border-[var(--border)]" />
+
+      {/* ============================================================
+          Keberangkatan
+          ============================================================ */}
+      <section className="max-w-5xl mx-auto px-4 sm:px-6 py-12">
+        <h2 className="text-base font-semibold text-[var(--text-primary)] mb-5">
+          Titik Keberangkatan
+        </h2>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          {departurePoints.map((point) => (
+            <div
+              key={point.id}
+              className="flex items-center gap-3 border border-[var(--border)] rounded-[var(--radius-md)] px-4 py-3"
             >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
+              <MapPin className="w-4 h-4 text-[var(--primary)] flex-shrink-0" />
+              <div>
+                <p className="text-sm font-medium text-[var(--text-primary)]">{point.name}</p>
+                {point.description && (
+                  <p className="text-xs text-[var(--text-muted)]">{point.description}</p>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <div className="border-t border-[var(--border)]" />
+
+      {/* ============================================================
+          Dokumen
+          ============================================================ */}
+      <section className="max-w-5xl mx-auto px-4 sm:px-6 py-12">
+        <div className="flex items-start gap-2 mb-5">
+          <FileText className="w-4 h-4 text-[var(--primary)] mt-0.5 flex-shrink-0" />
+          <h2 className="text-base font-semibold text-[var(--text-primary)]">
+            Dokumen yang Diperlukan
+          </h2>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {REQUIRED_DOCS.map((doc) => (
+            <div
+              key={doc.label}
+              className="flex items-start gap-3 border border-[var(--border)] rounded-[var(--radius-md)] px-4 py-3"
             >
-              Learning
-            </a>{" "}
-            center.
+              <span className="text-base">{doc.icon}</span>
+              <div>
+                <p className="text-sm font-medium text-[var(--text-primary)]">{doc.label}</p>
+                <p className="text-xs text-[var(--text-muted)] mt-0.5">{doc.note}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="mt-4 p-3 bg-[var(--warning-light)] rounded-[var(--radius-md)] border border-amber-200">
+          <p className="text-sm text-[var(--warning-foreground)]">
+            <span className="font-medium">Catatan jamaah di bawah umur:</span> Jamaah yang belum
+            berusia 17 tahun tidak diwajibkan menyertakan KTP. Kartu Keluarga sudah mencukupi
+            sebagai dokumen identitas.
           </p>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
+      </section>
+
+      <div className="border-t border-[var(--border)]" />
+
+      {/* ============================================================
+          Alur Pendaftaran
+          ============================================================ */}
+      <section className="max-w-5xl mx-auto px-4 sm:px-6 py-12">
+        <h2 className="text-base font-semibold text-[var(--text-primary)] mb-5">
+          Alur Pendaftaran
+        </h2>
+        <div className="relative">
+          {/* Line */}
+          <div className="hidden sm:block absolute top-5 left-5 right-5 h-px bg-[var(--border)] z-0" />
+
+          <div className="grid grid-cols-1 sm:grid-cols-5 gap-4 relative z-10">
+            {REGISTRATION_STEPS.map((s) => (
+              <div key={s.step} className="flex sm:flex-col items-start sm:items-center gap-3 sm:gap-2">
+                <div className="w-10 h-10 rounded-full border-2 border-[var(--border)] bg-white flex items-center justify-center flex-shrink-0">
+                  <span className="text-xs font-semibold text-[var(--text-secondary)]">{s.step}</span>
+                </div>
+                <div className="sm:text-center">
+                  <p className="text-sm font-medium text-[var(--text-primary)]">{s.label}</p>
+                  <p className="text-xs text-[var(--text-muted)] mt-0.5">{s.desc}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <div className="border-t border-[var(--border)]" />
+
+      {/* ============================================================
+          FAQ
+          ============================================================ */}
+      <section className="max-w-5xl mx-auto px-4 sm:px-6 py-12">
+        <h2 className="text-base font-semibold text-[var(--text-primary)] mb-5">
+          Pertanyaan Umum
+        </h2>
+        <div className="space-y-3 max-w-2xl">
+          {FAQ.map((item) => (
+            <details key={item.q} className="group border border-[var(--border)] rounded-[var(--radius-md)]">
+              <summary className="flex items-center justify-between px-4 py-3 cursor-pointer list-none select-none">
+                <span className="text-sm font-medium text-[var(--text-primary)] pr-4">{item.q}</span>
+                <ChevronRight className="w-4 h-4 text-[var(--text-muted)] flex-shrink-0 transition-transform group-open:rotate-90" />
+              </summary>
+              <div className="px-4 pb-3 pt-0">
+                <p className="text-sm text-[var(--text-secondary)] leading-relaxed">{item.a}</p>
+              </div>
+            </details>
+          ))}
+        </div>
+      </section>
+
+      <div className="border-t border-[var(--border)]" />
+
+      {/* ============================================================
+          Contact
+          ============================================================ */}
+      <section className="max-w-5xl mx-auto px-4 sm:px-6 py-10">
+        <h2 className="text-base font-semibold text-[var(--text-primary)] mb-4">
+          Kontak Panitia
+        </h2>
+        <div className="flex flex-col sm:flex-row gap-4">
           <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
+            href="https://wa.me/6281234567890"
             target="_blank"
             rel="noopener noreferrer"
+            className="flex items-center gap-2 text-sm text-[var(--text-secondary)] hover:text-[var(--primary)] transition-colors"
           >
-            <Image
-              className="dark:invert h-[14px] w-4"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={14}
-            />
-            Deploy Now
+            <Phone className="w-4 h-4" />
+            WhatsApp Panitia
           </a>
           <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+            href="mailto:umrah@gontor.ac.id"
+            className="flex items-center gap-2 text-sm text-[var(--text-secondary)] hover:text-[var(--primary)] transition-colors"
           >
-            Documentation
+            <Mail className="w-4 h-4" />
+            umrah@gontor.ac.id
           </a>
         </div>
-      </main>
+      </section>
+
+      {/* ============================================================
+          Footer
+          ============================================================ */}
+      <footer className="border-t border-[var(--border)] bg-[var(--surface)]">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+          <div>
+            <p className="text-sm font-medium text-[var(--text-primary)]">
+              Panitia Umrah 100 Tahun Gontor
+            </p>
+            <p className="text-xs text-[var(--text-muted)] mt-0.5">
+              Pondok Modern Darussalam Gontor
+            </p>
+          </div>
+          <p className="text-xs text-[var(--text-muted)]">© 2026</p>
+        </div>
+      </footer>
     </div>
-  );
+  )
 }

@@ -1,26 +1,200 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+/* ============================================================
+   Design Tokens — Portal Umrah 100 Tahun Gontor
+   Direction: Institutional, modern, calm, trustworthy
+   ============================================================ */
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
+@layer base {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    /* Background */
+    --background: #ffffff;
+    --surface: #f8fafc;
+    --surface-muted: #f1f5f9;
+    --surface-hover: #e2e8f0;
+
+    /* Border */
+    --border: #e2e8f0;
+    --border-muted: #f1f5f9;
+    --border-focus: #14532d;
+
+    /* Text */
+    --text-primary: #0f172a;
+    --text-secondary: #475569;
+    --text-muted: #94a3b8;
+    --text-placeholder: #cbd5e1;
+
+    /* Primary — hijau gelap institutional */
+    --primary: #14532d;
+    --primary-hover: #166534;
+    --primary-active: #15803d;
+    --primary-light: #dcfce7;
+    --primary-foreground: #ffffff;
+
+    /* Semantic */
+    --success: #16a34a;
+    --success-light: #dcfce7;
+    --success-foreground: #14532d;
+
+    --warning: #d97706;
+    --warning-light: #fef3c7;
+    --warning-foreground: #92400e;
+
+    --danger: #dc2626;
+    --danger-light: #fee2e2;
+    --danger-foreground: #991b1b;
+
+    --info: #2563eb;
+    --info-light: #dbeafe;
+    --info-foreground: #1e40af;
+
+    /* Radius */
+    --radius-sm: 4px;
+    --radius-md: 6px;
+    --radius-lg: 8px;
+    --radius-xl: 12px;
+
+    /* Shadow */
+    --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+    --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.07), 0 2px 4px -2px rgb(0 0 0 / 0.05);
+    --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.08), 0 4px 6px -4px rgb(0 0 0 / 0.05);
+
+    /* Sidebar */
+    --sidebar-width: 240px;
+    --sidebar-bg: #0f172a;
+    --sidebar-text: #cbd5e1;
+    --sidebar-text-active: #ffffff;
+    --sidebar-item-hover: rgba(255, 255, 255, 0.05);
+    --sidebar-item-active: rgba(20, 83, 45, 0.8);
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+/* ============================================================
+   Base
+   ============================================================ */
+
+@layer base {
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+
+  html {
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    font-size: 16px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    color: var(--text-primary);
+    background-color: var(--background);
+  }
+
+  body {
+    min-height: 100vh;
+    background-color: var(--background);
+    color: var(--text-primary);
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-weight: 600;
+    line-height: 1.3;
+    color: var(--text-primary);
+  }
+
+  h1 { font-size: 1.5rem; }
+  h2 { font-size: 1.25rem; }
+  h3 { font-size: 1.125rem; }
+  h4 { font-size: 1rem; }
+
+  p {
+    color: var(--text-secondary);
+    line-height: 1.6;
+  }
+
+  a {
+    color: var(--primary);
+    text-decoration: none;
+  }
+
+  a:hover {
+    text-decoration: underline;
+  }
+
+  /* Focus visible */
+  :focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+    border-radius: var(--radius-sm);
+  }
+}
+
+/* ============================================================
+   Utility classes
+   ============================================================ */
+
+@layer utilities {
+  .text-primary { color: var(--text-primary); }
+  .text-secondary { color: var(--text-secondary); }
+  .text-muted { color: var(--text-muted); }
+
+  .bg-surface { background-color: var(--surface); }
+  .bg-surface-muted { background-color: var(--surface-muted); }
+
+  .border-default { border-color: var(--border); }
+
+  /* Transition utility */
+  .transition-base {
+    transition: all 150ms ease;
+  }
+
+  .transition-colors {
+    transition: color 150ms ease, background-color 150ms ease, border-color 150ms ease;
+  }
+
+  /* Animations */
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  @keyframes slideIn {
+    from { opacity: 0; transform: translateX(-8px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+
+  @keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+  }
+
+  .animate-fade-in {
+    animation: fadeIn 150ms ease forwards;
+  }
+
+  .animate-slide-in {
+    animation: slideIn 200ms ease forwards;
+  }
+
+  .animate-spin {
+    animation: spin 1s linear infinite;
+  }
+
+  /* Skeleton */
+  @keyframes shimmer {
+    0% { background-position: -200% 0; }
+    100% { background-position: 200% 0; }
+  }
+
+  .skeleton {
+    background: linear-gradient(
+      90deg,
+      var(--surface-muted) 25%,
+      var(--surface-hover) 50%,
+      var(--surface-muted) 75%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite;
+    border-radius: var(--radius-md);
+  }
 }
