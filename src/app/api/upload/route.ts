@@ -36,7 +36,7 @@ export async function POST(req: NextRequest) {
     const supabase = await createServiceClient()
     const { data: jamaah, error: jamaahError } = await supabase
       .from('jamaahs')
-      .select('*, registration_groups(registration_code, type)')
+      .select('*, registration_groups(id, registration_code, type, group_status)')
       .eq('id', jamaahId)
       .single()
 
@@ -151,6 +151,30 @@ export async function POST(req: NextRequest) {
 
     if (docError) {
       throw new Error('Gagal menyimpan metadata dokumen.')
+    }
+
+    // If group was in revision_required, update it back to submitted so admin sees the revision
+    if (group && (group as Record<string, unknown>).group_status === 'revision_required') {
+      const gId = (group as Record<string, unknown>).id as string
+      try {
+        await supabase
+          .from('registration_groups')
+          .update({
+            group_status: 'submitted',
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', gId)
+
+        await supabase.from('audit_logs').insert({
+          actor_type: 'jamaah',
+          action: 'group.revision_submitted',
+          entity_type: 'registration_group',
+          entity_id: gId,
+          new_data: { document_type: docType, file_name: uploadName },
+        })
+      } catch (revErr) {
+        console.warn('Could not update group status from revision_required:', revErr)
+      }
     }
 
     // If this is payment proof, also update the payments table record

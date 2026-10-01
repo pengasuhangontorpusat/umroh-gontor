@@ -2,9 +2,11 @@ import { createServiceClient } from '@/lib/supabase/server'
 import { notFound } from 'next/navigation'
 import { GroupStatusBadge, DocumentStatusBadge, PaymentStatusBadge } from '@/components/ui/StatusBadge'
 import { formatDate, formatCurrency, maskNik } from '@/lib/utils'
-import { UpdateStatusForm } from '@/components/admin/UpdateStatusForm'
-import { DocumentVerificationActions } from '@/components/admin/DocumentVerificationActions'
-import { PaymentVerificationActions } from '@/components/admin/PaymentVerificationActions'
+import {
+  UpdateStatusForm,
+  DocumentVerificationActions,
+  PaymentVerificationActions,
+} from '@/components/admin'
 import Link from 'next/link'
 import { ChevronLeft, ExternalLink } from 'lucide-react'
 import { DOCUMENT_TYPE_LABELS, DocumentStatus, PaymentStatus } from '@/types'
