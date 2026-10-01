@@ -11,6 +11,13 @@ import {
   CheckCircle,
   Save,
   AlertCircle,
+  HardDrive,
+  Upload,
+  Key,
+  RefreshCw,
+  FileCode,
+  Check,
+  Loader2,
 } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
@@ -73,7 +80,7 @@ const INITIAL_BANK_ACCOUNTS = [
 ]
 
 export default function MasterSettingsPage() {
-  const [activeTab, setActiveTab] = useState<'departure' | 'packages' | 'banks' | 'general'>('departure')
+  const [activeTab, setActiveTab] = useState<'departure' | 'packages' | 'banks' | 'drive' | 'general'>('departure')
   
   // Data states
   const [departurePoints, setDeparturePoints] = useState(INITIAL_DEPARTURE_POINTS)
@@ -87,6 +94,23 @@ export default function MasterSettingsPage() {
     contactEmail: 'umrah100@gontor.ac.id',
     notes: 'Pendaftaran gelombang 1 dibuka sampai kuota 1.000 jamaah terpenuhi.',
   })
+
+  // Google Drive state
+  const [driveConfig, setDriveConfig] = useState({
+    client_email: '',
+    private_key: '',
+    root_folder_id: '',
+    shared_drive_id: '',
+    source: 'env',
+    updated_at: '',
+  })
+  const [isTestingDrive, setIsTestingDrive] = useState(false)
+  const [testResult, setTestResult] = useState<{
+    success: boolean
+    message: string
+    folder_name?: string
+  } | null>(null)
+  const [isSavingDrive, setIsSavingDrive] = useState(false)
 
   // Notifications
   const [saveSuccess, setSaveSuccess] = useState(false)
@@ -129,6 +153,22 @@ export default function MasterSettingsPage() {
         }
       })
       .catch((err) => console.error('Fetch packages failed:', err))
+
+    fetch('/api/admin/settings/drive')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.config) {
+          setDriveConfig({
+            client_email: data.config.client_email || '',
+            private_key: data.config.private_key || '',
+            root_folder_id: data.config.root_folder_id || '',
+            shared_drive_id: data.config.shared_drive_id || '',
+            source: data.config.source || 'env',
+            updated_at: data.config.updated_at || '',
+          })
+        }
+      })
+      .catch((err) => console.error('Fetch drive config failed:', err))
   }, [])
 
   // Modals
@@ -362,6 +402,86 @@ export default function MasterSettingsPage() {
     }
   }
 
+  // Google Drive Handlers
+  const handleServiceAccountJsonUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    const reader = new FileReader()
+    reader.onload = (event) => {
+      try {
+        const json = JSON.parse(event.target?.result as string)
+        if (json.client_email && json.private_key) {
+          setDriveConfig((prev) => ({
+            ...prev,
+            client_email: json.client_email,
+            private_key: json.private_key,
+          }))
+          alert(`File JSON berhasil dibaca untuk Service Account: ${json.client_email}`)
+        } else {
+          alert('Format JSON tidak valid. Pastikan file berisi "client_email" dan "private_key".')
+        }
+      } catch {
+        alert('Gagal membaca file JSON. Pastikan format file adalah JSON valid.')
+      }
+    }
+    reader.readAsText(file)
+  }
+
+  const handleTestDriveConnection = async () => {
+    setIsTestingDrive(true)
+    setTestResult(null)
+    try {
+      const res = await fetch('/api/admin/settings/drive/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(driveConfig),
+      })
+      const data = await res.json()
+      if (res.ok && data.success) {
+        setTestResult({
+          success: true,
+          message: data.message,
+          folder_name: data.folder_name,
+        })
+      } else {
+        setTestResult({
+          success: false,
+          message: data.error || 'Gagal terhubung ke Google Drive.',
+        })
+      }
+    } catch {
+      setTestResult({
+        success: false,
+        message: 'Terjadi kesalahan jaringan saat mencoba koneksi ke Google Drive.',
+      })
+    } finally {
+      setIsTestingDrive(false)
+    }
+  }
+
+  const handleSaveDriveSettings = async () => {
+    setIsSavingDrive(true)
+    try {
+      const res = await fetch('/api/admin/settings/drive', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(driveConfig),
+      })
+      const data = await res.json()
+      if (res.ok) {
+        triggerSaveNotification()
+        alert('Pengaturan Google Drive berhasil disimpan ke database!')
+      } else {
+        alert(data.error || 'Gagal menyimpan pengaturan Google Drive.')
+      }
+    } catch {
+      alert('Terjadi kesalahan jaringan.')
+    } finally {
+      setIsSavingDrive(false)
+    }
+  }
+
   return (
     <div className="p-6 max-w-6xl mx-auto space-y-6">
       {/* Header */}
@@ -416,6 +536,18 @@ export default function MasterSettingsPage() {
         >
           <CreditCard className="w-4 h-4" />
           Rekening Pembayaran ({bankAccounts.length})
+        </button>
+
+        <button
+          onClick={() => setActiveTab('drive')}
+          className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+            activeTab === 'drive'
+              ? 'border-[var(--primary)] text-[var(--primary)]'
+              : 'border-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+          }`}
+        >
+          <HardDrive className="w-4 h-4" />
+          Integrasi Google Drive
         </button>
 
         <button
@@ -613,6 +745,176 @@ export default function MasterSettingsPage() {
                 </div>
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* TAB: GOOGLE DRIVE INTEGRATION */}
+      {activeTab === 'drive' && (
+        <div className="bg-white border border-[var(--border)] rounded-xl p-6 shadow-sm space-y-6 max-w-3xl">
+          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+            <div>
+              <div className="flex items-center gap-2">
+                <HardDrive className="w-5 h-5 text-[var(--primary)]" />
+                <h2 className="text-base font-semibold text-[var(--text-primary)]">
+                  Integrasi Google Drive API
+                </h2>
+              </div>
+              <p className="text-xs text-[var(--text-secondary)] mt-1">
+                Kredensial Service Account untuk penyimpanan otomatis dokumen jamaah (KTP, KK, Paspor, Kartu Vaksin, dan Bukti Bayar).
+              </p>
+            </div>
+            {driveConfig.source === 'database' ? (
+              <span className="px-2.5 py-1 text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-md whitespace-nowrap self-start">
+                Tersimpan di Database
+              </span>
+            ) : (
+              <span className="px-2.5 py-1 text-xs font-medium bg-slate-100 text-slate-600 border border-slate-200 rounded-md whitespace-nowrap self-start">
+                Default dari .env
+              </span>
+            )}
+          </div>
+
+          {/* Quick upload JSON key */}
+          <div className="p-4 bg-emerald-50/60 border border-emerald-200 rounded-lg space-y-2">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <FileCode className="w-4 h-4 text-[var(--primary)]" />
+                <p className="text-xs font-semibold text-[var(--primary)]">
+                  Upload File Service Account Key (.json)
+                </p>
+              </div>
+            </div>
+            <p className="text-xs text-slate-600">
+              Punya file JSON Service Account dari Google Cloud? Upload di sini agar Client Email & Private Key langsung terisi otomatis tanpa perlu copy-paste manual.
+            </p>
+            <div>
+              <label className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-white text-[var(--primary)] border border-emerald-300 hover:bg-emerald-50 rounded-md cursor-pointer transition-colors shadow-sm">
+                <Upload className="w-3.5 h-3.5" />
+                <span>Pilih File .json</span>
+                <input
+                  type="file"
+                  accept=".json,application/json"
+                  className="hidden"
+                  onChange={handleServiceAccountJsonUpload}
+                />
+              </label>
+            </div>
+          </div>
+
+          {/* Form manual inputs */}
+          <div className="space-y-4">
+            <div>
+              <Input
+                label="Client Email (Service Account)"
+                type="email"
+                placeholder="misal: umrah-service@project.iam.gserviceaccount.com"
+                value={driveConfig.client_email}
+                onChange={(e) => setDriveConfig({ ...driveConfig, client_email: e.target.value })}
+              />
+              <p className="text-[11px] text-[var(--text-muted)] mt-1">
+                Email ini harus di-share akses <strong>Editor</strong> pada folder Google Drive Anda.
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-[var(--text-primary)] mb-1">
+                Private Key (RSA Private Key)
+              </label>
+              <textarea
+                rows={4}
+                value={driveConfig.private_key}
+                onChange={(e) => setDriveConfig({ ...driveConfig, private_key: e.target.value })}
+                placeholder="-----BEGIN PRIVATE KEY-----\nMIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQC...\n-----END PRIVATE KEY-----"
+                className="w-full px-3 py-2 text-xs font-mono border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--primary)] bg-slate-50/50"
+              />
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <Input
+                  label="Root Folder ID (Google Drive)"
+                  placeholder="misal: 1a2B3c4D5e6F7g8H9..."
+                  value={driveConfig.root_folder_id}
+                  onChange={(e) => setDriveConfig({ ...driveConfig, root_folder_id: e.target.value })}
+                />
+                <p className="text-[11px] text-[var(--text-muted)] mt-1">
+                  Ambil dari akhir URL folder di browser: <span className="font-mono text-[10px] bg-slate-100 px-1 py-0.5 rounded">drive.google.com/drive/folders/<b>[ID]</b></span>
+                </p>
+              </div>
+
+              <div>
+                <Input
+                  label="Shared Drive ID (Opsional)"
+                  placeholder="Kosongkan jika bukan Shared Drive"
+                  value={driveConfig.shared_drive_id || ''}
+                  onChange={(e) => setDriveConfig({ ...driveConfig, shared_drive_id: e.target.value })}
+                />
+                <p className="text-[11px] text-[var(--text-muted)] mt-1">
+                  Diisi hanya jika folder berada di dalam Google Workspace Shared Drive.
+                </p>
+              </div>
+            </div>
+
+            {/* Test result banner */}
+            {testResult && (
+              <div
+                className={`p-3 rounded-lg border text-xs flex items-start gap-2 ${
+                  testResult.success
+                    ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                    : 'bg-rose-50 text-rose-800 border-rose-200'
+                }`}
+              >
+                {testResult.success ? (
+                  <Check className="w-4 h-4 text-emerald-600 flex-shrink-0 mt-0.5" />
+                ) : (
+                  <AlertCircle className="w-4 h-4 text-rose-600 flex-shrink-0 mt-0.5" />
+                )}
+                <div>
+                  <p className="font-semibold">{testResult.message}</p>
+                  {testResult.folder_name && (
+                    <p className="mt-0.5 text-emerald-700">
+                      Nama Folder Ditemukan: <strong>&ldquo;{testResult.folder_name}&rdquo;</strong>
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Action buttons */}
+            <div className="pt-3 border-t border-[var(--border)] flex flex-wrap items-center justify-between gap-3">
+              <button
+                type="button"
+                disabled={isTestingDrive || !driveConfig.client_email || !driveConfig.private_key || !driveConfig.root_folder_id}
+                onClick={handleTestDriveConnection}
+                className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium bg-slate-100 text-slate-700 hover:bg-slate-200 rounded-lg transition-colors border border-slate-300 disabled:opacity-50"
+              >
+                {isTestingDrive ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <span>Menguji Koneksi ke Google...</span>
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw className="w-3.5 h-3.5" />
+                    <span>Uji Koneksi (Test Connection)</span>
+                  </>
+                )}
+              </button>
+
+              <Button
+                onClick={handleSaveDriveSettings}
+                disabled={isSavingDrive}
+                size="sm"
+              >
+                {isSavingDrive ? (
+                  <Loader2 className="w-4 h-4 animate-spin mr-1.5" />
+                ) : (
+                  <Save className="w-4 h-4 mr-1.5" />
+                )}
+                Simpan Pengaturan Drive
+              </Button>
+            </div>
           </div>
         </div>
       )}

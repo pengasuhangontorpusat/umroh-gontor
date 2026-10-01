@@ -49,10 +49,7 @@ export async function POST(req: NextRequest) {
     const jamaahFolderName = jamaah.full_name.toUpperCase().replace(/\s+/g, '_')
     
     // Get folder: Jamaah root > Group > Member
-    const jamaahRootFolderId = await getOrCreateFolder(
-      '02_Jamaah',
-      process.env.GOOGLE_DRIVE_ROOT_FOLDER_ID!
-    )
+    const jamaahRootFolderId = await getOrCreateFolder('02_Jamaah')
     const groupFolderId = await getOrCreateFolder(
       group.registration_code as string,
       jamaahRootFolderId

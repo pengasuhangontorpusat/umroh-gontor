@@ -1,20 +1,66 @@
 import { google } from 'googleapis'
+import { createServiceClient } from '@/lib/supabase/server'
 
-// Initialize Google Drive client (server-side only)
-function getDriveClient() {
+export interface GoogleDriveConfig {
+  client_email: string
+  private_key: string
+  root_folder_id: string
+  shared_drive_id?: string | null
+}
+
+// Fetch configuration from Database first, fallback to process.env
+export async function getDriveConfig(): Promise<GoogleDriveConfig> {
+  try {
+    const supabase = await createServiceClient()
+    const { data } = await supabase
+      .from('app_settings')
+      .select('value')
+      .eq('key', 'google_drive')
+      .maybeSingle()
+
+    if (data?.value && data.value.client_email && data.value.private_key) {
+      return {
+        client_email: data.value.client_email,
+        private_key: data.value.private_key,
+        root_folder_id: data.value.root_folder_id || process.env.GOOGLE_DRIVE_ROOT_FOLDER_ID || '',
+        shared_drive_id: data.value.shared_drive_id || process.env.GOOGLE_DRIVE_SHARED_DRIVE_ID || null,
+      }
+    }
+  } catch (err) {
+    console.warn('[google-drive] Gagal mengambil konfigurasi dari database, menggunakan fallback .env:', err)
+  }
+
+  return {
+    client_email: process.env.GOOGLE_DRIVE_CLIENT_EMAIL || '',
+    private_key: process.env.GOOGLE_DRIVE_PRIVATE_KEY || '',
+    root_folder_id: process.env.GOOGLE_DRIVE_ROOT_FOLDER_ID || '',
+    shared_drive_id: process.env.GOOGLE_DRIVE_SHARED_DRIVE_ID || null,
+  }
+}
+
+// Initialize Google Drive client with dynamic config
+export async function getDriveClient(customConfig?: GoogleDriveConfig) {
+  const config = customConfig || (await getDriveConfig())
+
+  if (!config.client_email || !config.private_key) {
+    throw new Error(
+      'Google Drive API belum dikonfigurasi. Silakan lengkapi pengaturan Google Drive di halaman Admin > Pengaturan.'
+    )
+  }
+
   const auth = new google.auth.GoogleAuth({
     credentials: {
-      client_email: process.env.GOOGLE_DRIVE_CLIENT_EMAIL,
-      private_key: process.env.GOOGLE_DRIVE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+      client_email: config.client_email,
+      private_key: config.private_key.replace(/\\n/g, '\n'),
     },
     scopes: ['https://www.googleapis.com/auth/drive'],
   })
 
-  return google.drive({ version: 'v3', auth })
+  return {
+    drive: google.drive({ version: 'v3', auth }),
+    config,
+  }
 }
-
-const ROOT_FOLDER_ID = process.env.GOOGLE_DRIVE_ROOT_FOLDER_ID!
-const SHARED_DRIVE_ID = process.env.GOOGLE_DRIVE_SHARED_DRIVE_ID
 
 interface CreateFolderOptions {
   name: string
@@ -42,7 +88,7 @@ export interface DriveFileMetadata {
 // ============================================================
 
 export async function createFolder(options: CreateFolderOptions): Promise<string> {
-  const drive = getDriveClient()
+  const { drive, config } = await getDriveClient()
   const { name, parentId } = options
 
   const folderMetadata: {
@@ -66,7 +112,7 @@ export async function createFolder(options: CreateFolderOptions): Promise<string
     fields: 'id',
   }
 
-  if (SHARED_DRIVE_ID) {
+  if (config.shared_drive_id) {
     params.supportsAllDrives = true
   }
 
@@ -74,11 +120,16 @@ export async function createFolder(options: CreateFolderOptions): Promise<string
   return folder.data.id!
 }
 
-export async function getOrCreateFolder(name: string, parentId: string): Promise<string> {
-  const drive = getDriveClient()
+export async function getOrCreateFolder(name: string, parentId?: string): Promise<string> {
+  const { drive, config } = await getDriveClient()
+  const targetParentId = parentId || config.root_folder_id
+
+  if (!targetParentId) {
+    throw new Error('Root Folder ID Google Drive belum ditentukan.')
+  }
 
   // Search for existing folder
-  const query = `name='${name}' and '${parentId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`
+  const query = `name='${name}' and '${targetParentId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`
 
   const params: {
     q: string
@@ -90,7 +141,7 @@ export async function getOrCreateFolder(name: string, parentId: string): Promise
     fields: 'files(id, name)',
   }
 
-  if (SHARED_DRIVE_ID) {
+  if (config.shared_drive_id) {
     params.supportsAllDrives = true
     params.includeItemsFromAllDrives = true
   }
@@ -102,7 +153,7 @@ export async function getOrCreateFolder(name: string, parentId: string): Promise
   }
 
   // Create if not exists
-  return createFolder({ name, parentId })
+  return createFolder({ name, parentId: targetParentId })
 }
 
 // ============================================================
@@ -114,11 +165,11 @@ export async function createGroupFolderStructure(
   type: 'individual' | 'family',
   memberNames: string[]
 ): Promise<{ groupFolderId: string; memberFolderIds: Record<string, string> }> {
-  // Get or create Pendaftaran folder
-  const pendaftaranFolderId = await getOrCreateFolder('01_Pendaftaran', ROOT_FOLDER_ID)
-  
-  // Get or create Jamaah folder
-  const jamaahRootFolderId = await getOrCreateFolder('02_Jamaah', ROOT_FOLDER_ID)
+  const { config } = await getDriveClient()
+  const rootId = config.root_folder_id
+
+  // Get or create Jamaah root folder
+  const jamaahRootFolderId = await getOrCreateFolder('02_Jamaah', rootId)
 
   // Create group folder
   const groupFolderName = registrationCode
@@ -146,8 +197,6 @@ export async function createGroupFolderStructure(
     }
   }
 
-  void pendaftaranFolderId // suppress unused warning
-
   return { groupFolderId, memberFolderIds }
 }
 
@@ -156,7 +205,7 @@ export async function createGroupFolderStructure(
 // ============================================================
 
 export async function uploadFileToDrive(options: UploadFileOptions): Promise<DriveFileMetadata> {
-  const drive = getDriveClient()
+  const { drive, config } = await getDriveClient()
   const { name, mimeType, buffer, folderId } = options
 
   const { Readable } = await import('stream')
@@ -179,7 +228,7 @@ export async function uploadFileToDrive(options: UploadFileOptions): Promise<Dri
     fields: 'id, name, mimeType, size, webViewLink, parents',
   }
 
-  if (SHARED_DRIVE_ID) {
+  if (config.shared_drive_id) {
     params.supportsAllDrives = true
   }
 
@@ -200,8 +249,8 @@ export async function uploadFileToDrive(options: UploadFileOptions): Promise<Dri
 // ============================================================
 
 export async function archiveFile(fileId: string): Promise<void> {
-  const drive = getDriveClient()
-  const archiveFolderId = await getOrCreateFolder('99_Arsip', ROOT_FOLDER_ID)
+  const { drive, config } = await getDriveClient()
+  const archiveFolderId = await getOrCreateFolder('99_Arsip', config.root_folder_id)
 
   const params: {
     fileId: string
@@ -215,7 +264,7 @@ export async function archiveFile(fileId: string): Promise<void> {
     fields: 'id, parents',
   }
 
-  if (SHARED_DRIVE_ID) {
+  if (config.shared_drive_id) {
     params.supportsAllDrives = true
   }
 
@@ -224,7 +273,7 @@ export async function archiveFile(fileId: string): Promise<void> {
     fileId,
     fields: 'parents',
   }
-  if (SHARED_DRIVE_ID) fileParamsGet.supportsAllDrives = true
+  if (config.shared_drive_id) fileParamsGet.supportsAllDrives = true
 
   const file = await drive.files.get(fileParamsGet)
   if (file.data.parents) {
@@ -239,5 +288,6 @@ export async function archiveFile(fileId: string): Promise<void> {
 // ============================================================
 
 export async function getPaymentFolderId(): Promise<string> {
-  return getOrCreateFolder('03_Pembayaran', ROOT_FOLDER_ID)
+  const { config } = await getDriveClient()
+  return getOrCreateFolder('03_Pembayaran', config.root_folder_id)
 }
