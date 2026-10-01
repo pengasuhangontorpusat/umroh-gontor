@@ -37,9 +37,11 @@ export interface RegistrationDraft {
   type: RegistrationType | null
   departure_point_id: string
   package_id: string
+  pic_name: string
   pic_phone: string
   pic_email: string
   pic_domicile_city: string
+  pic_is_departing: boolean
   members: JamaahDraft[]
   payment_type: PaymentType | null
   payment_date: string
@@ -53,9 +55,11 @@ const defaultDraft: RegistrationDraft = {
   type: null,
   departure_point_id: '',
   package_id: '',
+  pic_name: '',
   pic_phone: '',
   pic_email: '',
   pic_domicile_city: '',
+  pic_is_departing: true,
   members: [],
   payment_type: null,
   payment_date: '',

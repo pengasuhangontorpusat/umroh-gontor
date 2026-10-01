@@ -36,7 +36,7 @@ export async function POST(req: NextRequest) {
     const supabase = await createServiceClient()
     const { data: jamaah, error: jamaahError } = await supabase
       .from('jamaahs')
-      .select('*, registration_groups(id, registration_code, type, group_status)')
+      .select('*')
       .eq('id', jamaahId)
       .single()
 
@@ -44,8 +44,17 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Jamaah tidak ditemukan.' }, { status: 404 })
     }
 
+    const { data: group, error: groupError } = await supabase
+      .from('registration_groups')
+      .select('id, registration_code, type, group_status')
+      .eq('id', jamaah.group_id)
+      .single()
+
+    if (groupError || !group) {
+      return NextResponse.json({ error: 'Rombongan pendaftaran tidak ditemukan.' }, { status: 404 })
+    }
+
     // Determine upload folder
-    const group = (jamaah as Record<string, unknown>).registration_groups as Record<string, unknown>
     const jamaahFolderName = jamaah.full_name.toUpperCase().replace(/\s+/g, '_')
     
     // Prepare file

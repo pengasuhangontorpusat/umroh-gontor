@@ -103,6 +103,7 @@ function StatusContent() {
     has_disability: false,
     disability_description: '',
     medical_history: '',
+    relationship_to_pic: '',
   })
   const [savingJamaah, setSavingJamaah] = useState(false)
   const [editJamaahSuccessMsg, setEditJamaahSuccessMsg] = useState<string | null>(null)
@@ -268,6 +269,7 @@ function StatusContent() {
       has_disability: Boolean(j.has_disability),
       disability_description: j.disability_description || '',
       medical_history: j.medical_history || '',
+      relationship_to_pic: j.relationship_to_pic || '',
     })
     setEditJamaahSuccessMsg(null)
     setEditJamaahErrorMsg(null)
@@ -544,6 +546,37 @@ function StatusContent() {
                   </p>
                 </div>
               </div>
+
+              {/* Penanggung Jawab (PIC) Rombongan */}
+              {group.pic_jamaah && (
+                <div className="mt-4 pt-4 border-t border-[var(--border)] flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-50 p-3.5 rounded-lg border border-slate-200">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-full bg-emerald-700 text-white font-bold text-xs flex items-center justify-center shrink-0">
+                      PIC
+                    </div>
+                    <div>
+                      <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide block">
+                        Penanggung Jawab (PIC) Rombongan
+                      </span>
+                      <p className="text-sm font-bold text-slate-900">
+                        {group.pic_jamaah.full_name}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-3 text-xs text-slate-600">
+                    {group.pic_jamaah.phone && (
+                      <div className="flex items-center gap-1.5 font-mono">
+                        <Phone className="w-3.5 h-3.5 text-emerald-700" />
+                        <span>{group.pic_jamaah.phone}</span>
+                      </div>
+                    )}
+                    <span className="text-[11px] font-semibold bg-emerald-50 text-emerald-800 px-2.5 py-0.5 rounded border border-emerald-200">
+                      Membawa {jamaahs.length} Jamaah
+                    </span>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Timeline */}
@@ -627,7 +660,14 @@ function StatusContent() {
                 <div className="space-y-4">
                   {jamaahs.map((jamaah, index) => {
                     const docs = (jamaah as Jamaah & { documents?: Document[] }).documents ?? []
-                    const isPic = index === 0 || jamaah.relationship_to_pic === 'self' || !jamaah.relationship_to_pic
+                    const relationLabel =
+                      jamaah.relationship_to_pic && jamaah.relationship_to_pic !== 'PIC'
+                        ? jamaah.relationship_to_pic
+                        : group.pic_jamaah?.id === jamaah.id
+                        ? 'Diri Sendiri (PIC)'
+                        : group.type === 'individual'
+                        ? 'Diri Sendiri'
+                        : 'Anggota Rombongan'
                     const isExpanded = expandedJamaahs[jamaah.id] ?? true
                     const ktpRequired = jamaah.birth_date ? isKtpRequired(jamaah.birth_date) : true
 
@@ -687,7 +727,7 @@ function StatusContent() {
                                     {jamaah.full_name}
                                   </h3>
                                   <span className="text-[11px] font-semibold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded">
-                                    {isPic ? 'PIC (Penanggung Jawab)' : jamaah.relationship_to_pic || 'Anggota'}
+                                    {relationLabel}
                                   </span>
                                   <span className="text-[11px] text-slate-600 bg-slate-100 px-2 py-0.5 rounded">
                                     {jamaah.gender === 'male' ? 'Laki-laki' : 'Perempuan'}
@@ -1220,6 +1260,29 @@ function StatusContent() {
                         onChange={(e) => setEditForm({ ...editForm, full_name: e.target.value })}
                         className="w-full h-9 px-3 border border-slate-300 rounded-md text-sm text-slate-900 font-medium focus:border-emerald-700 focus:outline-none"
                       />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-xs font-semibold text-slate-700">
+                        Hubungan dengan PIC (Penanggung Jawab)
+                      </label>
+                      <select
+                        value={editForm.relationship_to_pic}
+                        onChange={(e) => setEditForm({ ...editForm, relationship_to_pic: e.target.value })}
+                        className="w-full h-9 px-3 border border-slate-300 rounded-md text-sm text-slate-900 font-medium focus:border-emerald-700 focus:outline-none"
+                      >
+                        <option value="Diri Sendiri (PIC)">Diri Sendiri (PIC ikut berangkat)</option>
+                        <option value="Ayah Kandung">Ayah Kandung</option>
+                        <option value="Ibu Kandung">Ibu Kandung</option>
+                        <option value="Suami">Suami</option>
+                        <option value="Istri">Istri</option>
+                        <option value="Anak">Anak</option>
+                        <option value="Mertua">Mertua</option>
+                        <option value="Saudara Kandung">Saudara Kandung</option>
+                        <option value="Kerabat / Keluarga">Kerabat / Keluarga</option>
+                        <option value="Santri / Alumni">Santri / Alumni</option>
+                        <option value="Lainnya">Lainnya</option>
+                      </select>
                     </div>
 
                     <div className="space-y-1">

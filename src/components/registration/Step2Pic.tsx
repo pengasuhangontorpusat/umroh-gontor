@@ -65,6 +65,7 @@ export function Step2Pic() {
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const pic = draft.members[0]
+  const [isDeparting, setIsDeparting] = useState<boolean>(draft.pic_is_departing ?? true)
 
   const {
     register,
@@ -75,7 +76,7 @@ export function Step2Pic() {
   } = useForm<PicFormValues, any, PicFormValues>({
     resolver: zodResolver(picSchema) as any,
     defaultValues: {
-      full_name: pic?.full_name ?? '',
+      full_name: draft.pic_name || pic?.full_name || '',
       phone: draft.pic_phone,
       email: draft.pic_email,
       domicile_city: draft.pic_domicile_city,
@@ -96,20 +97,33 @@ export function Step2Pic() {
 
   function onSubmit(values: PicFormValues) {
     setDraft({
+      pic_name: values.full_name,
       pic_phone: values.phone,
       pic_email: values.email ?? '',
       pic_domicile_city: values.domicile_city,
       departure_point_id: values.departure_point_id,
       package_id: values.package_id || packages[0]?.id || FALLBACK_PACKAGES[0].id,
+      pic_is_departing: isDeparting,
     })
 
-    // Update PIC member data
-    if (pic) {
-      updateMember(pic.id, {
-        full_name: values.full_name,
-        phone: values.phone,
-        relationship_to_pic: 'PIC',
-      })
+    // If PIC is departing, auto-sync with first member
+    if (isDeparting) {
+      if (pic) {
+        updateMember(pic.id, {
+          full_name: values.full_name,
+          phone: values.phone,
+          relationship_to_pic: 'Diri Sendiri (PIC)',
+        })
+      }
+    } else {
+      // If PIC is not departing, make sure first member is not locked to PIC
+      if (pic && pic.relationship_to_pic === 'Diri Sendiri (PIC)') {
+        updateMember(pic.id, {
+          full_name: '',
+          phone: '',
+          relationship_to_pic: '',
+        })
+      }
     }
 
     nextStep()
@@ -122,9 +136,60 @@ export function Step2Pic() {
       <div>
         <h2 className="text-xl font-semibold text-[var(--text-primary)]">Data Pendaftar (PIC)</h2>
         <p className="text-sm text-[var(--text-secondary)] mt-1">
-          Informasi kontak penanggung jawab pendaftaran.
-          {draft.type === 'family' && ' Anda akan otomatis terdaftar sebagai anggota pertama.'}
+          Informasi kontak penanggung jawab yang mendaftarkan dan mengkoordinasikan rombongan.
         </p>
+      </div>
+
+      {/* Pilihan Keikutsertaan PIC */}
+      <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+        <label className="text-xs font-semibold text-slate-800 block">
+          Apakah Anda (PIC / Penanggung Jawab) juga ikut berangkat sebagai salah satu jamaah?
+        </label>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+          <label
+            className={`flex items-start gap-2.5 p-3 rounded-lg border cursor-pointer transition-all ${
+              isDeparting
+                ? 'bg-emerald-50 border-emerald-600 text-emerald-900 ring-1 ring-emerald-600'
+                : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100'
+            }`}
+          >
+            <input
+              type="radio"
+              name="pic_is_departing"
+              checked={isDeparting}
+              onChange={() => setIsDeparting(true)}
+              className="mt-0.5 text-emerald-700 focus:ring-emerald-600"
+            />
+            <div className="text-xs">
+              <span className="font-bold block">Ya, Saya Ikut Berangkat</span>
+              <span className="text-[11px] text-slate-500">
+                Data Anda otomatis terdaftar sebagai salah satu jamaah.
+              </span>
+            </div>
+          </label>
+
+          <label
+            className={`flex items-start gap-2.5 p-3 rounded-lg border cursor-pointer transition-all ${
+              !isDeparting
+                ? 'bg-emerald-50 border-emerald-600 text-emerald-900 ring-1 ring-emerald-600'
+                : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100'
+            }`}
+          >
+            <input
+              type="radio"
+              name="pic_is_departing"
+              checked={!isDeparting}
+              onChange={() => setIsDeparting(false)}
+              className="mt-0.5 text-emerald-700 focus:ring-emerald-600"
+            />
+            <div className="text-xs">
+              <span className="font-bold block">Tidak, Hanya Mendaftarkan Orang Lain</span>
+              <span className="text-[11px] text-slate-500">
+                Mendaftarkan keluarga / orang tua / rombongan tanpa ikut berangkat.
+              </span>
+            </div>
+          </label>
+        </div>
       </div>
 
       {hasErrors && (

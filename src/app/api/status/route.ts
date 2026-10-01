@@ -22,7 +22,8 @@ export async function GET(req: NextRequest) {
         created_at,
         notes,
         departure_point:departure_points(id, code, name),
-        package:packages(id, name, price, dp_amount)
+        package:packages(id, name, price, dp_amount),
+        pic_jamaah:jamaahs!fk_pic_jamaah(id, full_name, phone, relationship_to_pic)
       `)
       .ilike('registration_code', code)
       .maybeSingle()

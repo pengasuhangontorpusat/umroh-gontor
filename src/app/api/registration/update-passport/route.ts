@@ -22,17 +22,31 @@ export async function POST(req: NextRequest) {
 
     const supabase = await createServiceClient()
 
-    // Verify registration group matches code and contains this jamaah
+    // 1. Look up group by registration code
+    const { data: group, error: groupError } = await supabase
+      .from('registration_groups')
+      .select('id, registration_code')
+      .ilike('registration_code', registration_code.trim())
+      .single()
+
+    if (groupError || !group) {
+      return NextResponse.json(
+        { error: 'Kode pendaftaran tidak ditemukan.' },
+        { status: 404 }
+      )
+    }
+
+    // 2. Verify jamaah belongs to this group
     const { data: jamaah, error: jamaahError } = await supabase
       .from('jamaahs')
-      .select('id, full_name, group_id, registration_groups!inner(id, registration_code)')
+      .select('id, full_name, group_id')
       .eq('id', jamaah_id)
-      .eq('registration_groups.registration_code', registration_code.trim().toUpperCase())
+      .eq('group_id', group.id)
       .single()
 
     if (jamaahError || !jamaah) {
       return NextResponse.json(
-        { error: 'Data jamaah atau kode pendaftaran tidak valid.' },
+        { error: 'Data jamaah tidak valid dalam rombongan ini.' },
         { status: 404 }
       )
     }

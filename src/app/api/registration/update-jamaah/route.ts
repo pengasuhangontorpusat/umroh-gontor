@@ -25,6 +25,7 @@ export async function POST(req: NextRequest) {
       has_disability,
       disability_description,
       medical_history,
+      relationship_to_pic,
     } = body
 
     if (!registration_code || !jamaah_id || !full_name) {
@@ -36,17 +37,31 @@ export async function POST(req: NextRequest) {
 
     const supabase = await createServiceClient()
 
-    // Verify registration group matches code and contains this jamaah
+    // 1. Look up group by registration code
+    const { data: group, error: groupError } = await supabase
+      .from('registration_groups')
+      .select('id, registration_code, group_status')
+      .ilike('registration_code', registration_code.trim())
+      .single()
+
+    if (groupError || !group) {
+      return NextResponse.json(
+        { error: 'Kode pendaftaran tidak ditemukan.' },
+        { status: 404 }
+      )
+    }
+
+    // 2. Verify jamaah belongs to this group
     const { data: jamaah, error: jamaahError } = await supabase
       .from('jamaahs')
-      .select('id, full_name, group_id, registration_groups!inner(id, registration_code, group_status)')
+      .select('id, full_name, group_id')
       .eq('id', jamaah_id)
-      .eq('registration_groups.registration_code', registration_code.trim().toUpperCase())
+      .eq('group_id', group.id)
       .single()
 
     if (jamaahError || !jamaah) {
       return NextResponse.json(
-        { error: 'Data jamaah atau kode pendaftaran tidak valid.' },
+        { error: 'Data jamaah tidak valid dalam rombongan ini.' },
         { status: 404 }
       )
     }
@@ -73,6 +88,7 @@ export async function POST(req: NextRequest) {
         has_disability: Boolean(has_disability),
         disability_description: has_disability ? disability_description?.trim() || null : null,
         medical_history: medical_history?.trim() || null,
+        relationship_to_pic: relationship_to_pic?.trim() || null,
         updated_at: new Date().toISOString(),
       })
       .eq('id', jamaah_id)
@@ -86,15 +102,14 @@ export async function POST(req: NextRequest) {
     }
 
     // If group was revision_required, reset to submitted
-    const groupData = jamaah.registration_groups as unknown as { id: string; group_status: string }
-    if (groupData?.group_status === 'revision_required') {
+    if (group?.group_status === 'revision_required') {
       await supabase
         .from('registration_groups')
         .update({
           group_status: 'submitted',
           updated_at: new Date().toISOString(),
         })
-        .eq('id', groupData.id)
+        .eq('id', group.id)
     }
 
     // Insert audit log

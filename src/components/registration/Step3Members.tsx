@@ -30,13 +30,17 @@ const PASSPORT_STATUS_OPTIONS = [
 ]
 
 const RELATIONSHIP_OPTIONS = [
-  { value: 'PIC', label: 'Pendaftar Utama' },
-  { value: 'suami', label: 'Suami' },
-  { value: 'istri', label: 'Istri' },
-  { value: 'anak', label: 'Anak' },
-  { value: 'orang_tua', label: 'Orang Tua' },
-  { value: 'saudara', label: 'Saudara' },
-  { value: 'lainnya', label: 'Lainnya' },
+  { value: 'Diri Sendiri (PIC)', label: 'Diri Sendiri (PIC ikut berangkat)' },
+  { value: 'Ayah Kandung', label: 'Ayah Kandung' },
+  { value: 'Ibu Kandung', label: 'Ibu Kandung' },
+  { value: 'Suami', label: 'Suami' },
+  { value: 'Istri', label: 'Istri' },
+  { value: 'Anak', label: 'Anak' },
+  { value: 'Mertua', label: 'Mertua' },
+  { value: 'Saudara Kandung', label: 'Saudara Kandung' },
+  { value: 'Kerabat / Keluarga', label: 'Kerabat / Keluarga' },
+  { value: 'Santri / Alumni', label: 'Santri / Alumni' },
+  { value: 'Lainnya', label: 'Lainnya' },
 ]
 
 interface MemberFormProps {
@@ -180,7 +184,7 @@ function MemberForm({ member, index, isFirst, canRemove, isExpanded, onToggleExp
       {/* Form */}
       {isExpanded && (
         <form onSubmit={handleSubmit(onSave)} className="px-4 pb-4 pt-2 border-t border-[var(--border)] space-y-4">
-          {/* Row 1 */}
+          {/* Row 1: Nama Lengkap & Hubungan dengan PIC */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Input
               label="Nama Lengkap"
@@ -191,6 +195,18 @@ function MemberForm({ member, index, isFirst, canRemove, isExpanded, onToggleExp
               {...register('full_name')}
             />
             <Select
+              label="Hubungan dengan PIC (Penanggung Jawab)"
+              id={`relationship-${member.id}`}
+              placeholder="Pilih Hubungan"
+              options={RELATIONSHIP_OPTIONS}
+              error={errors.relationship_to_pic?.message}
+              {...register('relationship_to_pic')}
+            />
+          </div>
+
+          {/* Row 2: Jenis Kelamin & Tempat Lahir */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Select
               label="Jenis Kelamin"
               id={`gender-${member.id}`}
               required
@@ -199,10 +215,6 @@ function MemberForm({ member, index, isFirst, canRemove, isExpanded, onToggleExp
               error={errors.gender?.message}
               {...register('gender')}
             />
-          </div>
-
-          {/* Row 2 */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Input
               label="Tempat Lahir"
               id={`birth-place-${member.id}`}
@@ -211,6 +223,10 @@ function MemberForm({ member, index, isFirst, canRemove, isExpanded, onToggleExp
               error={errors.birth_place?.message}
               {...register('birth_place')}
             />
+          </div>
+
+          {/* Row 3: Tanggal Lahir & NIK */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="flex flex-col gap-1.5">
               <Input
                 label="Tanggal Lahir"
@@ -224,10 +240,6 @@ function MemberForm({ member, index, isFirst, canRemove, isExpanded, onToggleExp
                 <p className="text-xs text-[var(--text-muted)]">{age} tahun</p>
               )}
             </div>
-          </div>
-
-          {/* NIK */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Input
               label={`NIK${ktpRequired ? '' : ' (opsional — di bawah 17 tahun)'}`}
               id={`nik-${member.id}`}
@@ -238,6 +250,10 @@ function MemberForm({ member, index, isFirst, canRemove, isExpanded, onToggleExp
               hint={!ktpRequired ? 'Jamaah di bawah 17 tahun tidak wajib mengisi NIK.' : undefined}
               {...register('nik')}
             />
+          </div>
+
+          {/* Row 4: Nama Ayah */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Input
               label="Nama Ayah"
               id={`father-${member.id}`}
