@@ -111,6 +111,7 @@ export default function MasterSettingsPage() {
     folder_name?: string
   } | null>(null)
   const [isSavingDrive, setIsSavingDrive] = useState(false)
+  const [isSavingGeneral, setIsSavingGeneral] = useState(false)
 
   // Notifications
   const [saveSuccess, setSaveSuccess] = useState(false)
@@ -169,6 +170,24 @@ export default function MasterSettingsPage() {
         }
       })
       .catch((err) => console.error('Fetch drive config failed:', err))
+
+    fetch('/api/admin/settings/general')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.parameters) {
+          setGeneralSettings(data.parameters)
+        }
+      })
+      .catch((err) => console.error('Fetch general settings failed:', err))
+
+    fetch('/api/admin/settings/banks')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.banks && Array.isArray(data.banks) && data.banks.length > 0) {
+          setBankAccounts(data.banks)
+        }
+      })
+      .catch((err) => console.error('Fetch banks failed:', err))
   }, [])
 
   // Modals
@@ -373,9 +392,21 @@ export default function MasterSettingsPage() {
   }
 
   // Bank Handlers
+  const saveBanksToDb = async (newBanks: typeof bankAccounts) => {
+    try {
+      await fetch('/api/admin/settings/banks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ banks: newBanks }),
+      })
+    } catch (err) {
+      console.error('Failed to sync bank accounts to DB:', err)
+    }
+  }
+
   const handleAddBank = () => {
     if (!newBank.bankName || !newBank.accountNumber) return
-    setBankAccounts([
+    const updated = [
       ...bankAccounts,
       {
         id: String(Date.now()),
@@ -384,21 +415,50 @@ export default function MasterSettingsPage() {
         accountHolder: newBank.accountHolder.toUpperCase(),
         isActive: true,
       },
-    ])
+    ]
+    setBankAccounts(updated)
+    saveBanksToDb(updated)
     setNewBank({ bankName: '', accountNumber: '', accountHolder: '' })
     setIsAddBankOpen(false)
     triggerSaveNotification()
   }
 
   const toggleBank = (id: string) => {
-    setBankAccounts(bankAccounts.map((b) => (b.id === id ? { ...b, isActive: !b.isActive } : b)))
+    const updated = bankAccounts.map((b) => (b.id === id ? { ...b, isActive: !b.isActive } : b))
+    setBankAccounts(updated)
+    saveBanksToDb(updated)
     triggerSaveNotification()
   }
 
   const deleteBank = (id: string) => {
     if (confirm('Hapus rekening bank ini?')) {
-      setBankAccounts(bankAccounts.filter((b) => b.id !== id))
+      const updated = bankAccounts.filter((b) => b.id !== id)
+      setBankAccounts(updated)
+      saveBanksToDb(updated)
       triggerSaveNotification()
+    }
+  }
+
+  // General Settings Handler
+  const handleSaveGeneralSettings = async () => {
+    setIsSavingGeneral(true)
+    try {
+      const res = await fetch('/api/admin/settings/general', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(generalSettings),
+      })
+      const data = await res.json()
+      if (res.ok) {
+        triggerSaveNotification()
+        alert('Parameter pendaftaran berhasil disimpan ke database!')
+      } else {
+        alert(data.error || 'Gagal menyimpan parameter.')
+      }
+    } catch {
+      alert('Terjadi kesalahan jaringan.')
+    } finally {
+      setIsSavingGeneral(false)
     }
   }
 
@@ -998,8 +1058,12 @@ export default function MasterSettingsPage() {
             </div>
 
             <div className="pt-2 flex justify-end">
-              <Button onClick={triggerSaveNotification}>
-                <Save className="w-4 h-4 mr-1.5" />
+              <Button onClick={handleSaveGeneralSettings} disabled={isSavingGeneral}>
+                {isSavingGeneral ? (
+                  <Loader2 className="w-4 h-4 animate-spin mr-1.5" />
+                ) : (
+                  <Save className="w-4 h-4 mr-1.5" />
+                )}
                 Simpan Parameter
               </Button>
             </div>
