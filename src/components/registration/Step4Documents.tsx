@@ -123,23 +123,28 @@ function MemberDocs({
 }
 
 export function Step4Documents() {
-  const { draft, nextStep, prevStep } = useRegistration()
-  const [docStates, setDocStates] = useState<Record<string, Partial<Record<DocumentType, DocumentState>>>>({})
+  const { draft, nextStep, prevStep, pendingFiles, setMemberFile } = useRegistration()
 
   async function handleUpload(memberId: string, docType: DocumentType, file: File) {
-    // Store temp - actual upload happens when real jamaah ID is available post-submission
-    // For now we'll track the file locally and upload on submit
-    setDocStates((prev) => ({
-      ...prev,
-      [memberId]: {
-        ...prev[memberId],
-        [docType]: {
-          status: 'uploaded',
-          fileName: file.name,
-        },
-      },
-    }))
+    setMemberFile(memberId, docType, file)
   }
+
+  // Derive docStates from pendingFiles in context
+  const docStates: Record<string, Partial<Record<DocumentType, DocumentState>>> = {}
+  draft.members.forEach((member) => {
+    docStates[member.id] = {}
+    const mFiles = pendingFiles[member.id] || {}
+    const docKeys: DocumentType[] = ['ktp', 'kk', 'vaksin', 'paspor', 'bukti_bayar']
+    docKeys.forEach((dType) => {
+      const f = mFiles[dType]
+      if (f) {
+        docStates[member.id][dType] = {
+          status: 'uploaded',
+          fileName: f.name,
+        }
+      }
+    })
+  })
 
   return (
     <div className="space-y-5">

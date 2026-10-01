@@ -36,8 +36,9 @@ function DataRow({ label, value }: { label: string; value: string | undefined | 
 }
 
 export function Step6Review() {
-  const { draft, nextStep, prevStep, setDraft } = useRegistration()
+  const { draft, nextStep, prevStep, setDraft, pendingFiles, paymentProofFile } = useRegistration()
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [uploadStatus, setUploadStatus] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [confirmed, setConfirmed] = useState(false)
 
@@ -47,6 +48,7 @@ export function Step6Review() {
     if (!confirmed) return
     setIsSubmitting(true)
     setError(null)
+    setUploadStatus('Menyimpan data pendaftaran...')
 
     try {
       const idempotencyKey = generateIdempotencyKey()
@@ -75,6 +77,70 @@ export function Step6Review() {
         throw new Error(data.error || 'Terjadi kendala saat menyimpan data.')
       }
 
+      // Collect all pending upload tasks
+      const uploadTasks: Array<{
+        file: File
+        jamaahId: string
+        docType: string
+        paymentId?: string
+      }> = []
+
+      draft.members.forEach((member, index) => {
+        const realJamaahId = data.jamaah_ids?.[index]
+        if (!realJamaahId) return
+        const mFiles = pendingFiles[member.id] || {}
+        const docKeys = ['ktp', 'kk', 'vaksin', 'paspor', 'bukti_bayar'] as const
+        docKeys.forEach((dType) => {
+          const file = mFiles[dType]
+          if (file) {
+            uploadTasks.push({
+              file,
+              jamaahId: realJamaahId,
+              docType: dType,
+            })
+          }
+        })
+      })
+
+      if (paymentProofFile && data.jamaah_ids?.[0]) {
+        uploadTasks.push({
+          file: paymentProofFile,
+          jamaahId: data.jamaah_ids[0],
+          docType: 'bukti_bayar',
+          paymentId: data.payment_id,
+        })
+      }
+
+      // Upload each file to Google Drive via /api/upload
+      if (uploadTasks.length > 0) {
+        for (let i = 0; i < uploadTasks.length; i++) {
+          const task = uploadTasks[i]
+          setUploadStatus(`Mengunggah berkas ke Google Drive (${i + 1}/${uploadTasks.length})...`)
+
+          try {
+            const formData = new FormData()
+            formData.append('file', task.file)
+            formData.append('jamaahId', task.jamaahId)
+            formData.append('docType', task.docType)
+            if (task.paymentId) {
+              formData.append('paymentId', task.paymentId)
+            }
+
+            const uploadRes = await fetch('/api/upload', {
+              method: 'POST',
+              body: formData,
+            })
+
+            if (!uploadRes.ok) {
+              const uErr = await uploadRes.json().catch(() => ({}))
+              console.warn(`[upload] file ${task.file.name} failed:`, uErr)
+            }
+          } catch (uploadErr) {
+            console.warn(`[upload] file ${task.file.name} error:`, uploadErr)
+          }
+        }
+      }
+
       setDraft({
         group_id: data.group_id,
         registration_code: data.registration_code,
@@ -84,6 +150,7 @@ export function Step6Review() {
       setError(err instanceof Error ? err.message : 'Terjadi kendala. Silakan coba kembali.')
     } finally {
       setIsSubmitting(false)
+      setUploadStatus(null)
     }
   }
 
@@ -167,6 +234,14 @@ export function Step6Review() {
         </label>
       </div>
 
+      {/* Uploading progress status */}
+      {isSubmitting && uploadStatus && (
+        <div className="flex items-center gap-2.5 p-3.5 bg-blue-50 border border-blue-200 rounded-[var(--radius-md)] text-blue-900 text-sm font-medium animate-pulse">
+          <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin flex-shrink-0" />
+          <span>{uploadStatus}</span>
+        </div>
+      )}
+
       {/* Error */}
       {error && (
         <div className="flex items-start gap-2 p-3 bg-[var(--danger-light)] rounded-[var(--radius-md)]">
@@ -185,7 +260,7 @@ export function Step6Review() {
           isLoading={isSubmitting}
           size="lg"
         >
-          Kirim Pendaftaran
+          {uploadStatus || 'Kirim Pendaftaran'}
         </Button>
       </div>
     </div>

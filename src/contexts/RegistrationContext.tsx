@@ -1,7 +1,7 @@
 'use client'
 
 import { createContext, useContext, useState, useCallback, ReactNode } from 'react'
-import { RegistrationType, PaymentType } from '@/types'
+import { RegistrationType, PaymentType, DocumentType } from '@/types'
 
 export interface JamaahDraft {
   id: string // local temp id
@@ -96,7 +96,11 @@ function createEmptyMember(id: string): JamaahDraft {
 
 interface RegistrationContextType {
   draft: RegistrationDraft
+  pendingFiles: Record<string, Partial<Record<DocumentType, File>>>
+  paymentProofFile: File | null
   setDraft: (updates: Partial<RegistrationDraft>) => void
+  setMemberFile: (memberId: string, docType: DocumentType, file: File | null) => void
+  setPaymentProofFile: (file: File | null) => void
   nextStep: () => void
   prevStep: () => void
   goToStep: (step: number) => void
@@ -110,9 +114,30 @@ const RegistrationContext = createContext<RegistrationContextType | null>(null)
 
 export function RegistrationProvider({ children }: { children: ReactNode }) {
   const [draft, setDraftState] = useState<RegistrationDraft>(defaultDraft)
+  const [pendingFiles, setPendingFiles] = useState<Record<string, Partial<Record<DocumentType, File>>>>({})
+  const [paymentProofFile, setPaymentProofFileState] = useState<File | null>(null)
 
   const setDraft = useCallback((updates: Partial<RegistrationDraft>) => {
     setDraftState((prev) => ({ ...prev, ...updates }))
+  }, [])
+
+  const setMemberFile = useCallback((memberId: string, docType: DocumentType, file: File | null) => {
+    setPendingFiles((prev) => {
+      const memberDocs = { ...(prev[memberId] || {}) }
+      if (file) {
+        memberDocs[docType] = file
+      } else {
+        delete memberDocs[docType]
+      }
+      return {
+        ...prev,
+        [memberId]: memberDocs,
+      }
+    })
+  }, [])
+
+  const setPaymentProofFile = useCallback((file: File | null) => {
+    setPaymentProofFileState(file)
   }, [])
 
   const nextStep = useCallback(() => {
@@ -140,6 +165,11 @@ export function RegistrationProvider({ children }: { children: ReactNode }) {
       ...prev,
       members: prev.members.filter((m) => m.id !== id),
     }))
+    setPendingFiles((prev) => {
+      const next = { ...prev }
+      delete next[id]
+      return next
+    })
   }, [])
 
   const updateMember = useCallback((id: string, updates: Partial<JamaahDraft>) => {
@@ -151,13 +181,19 @@ export function RegistrationProvider({ children }: { children: ReactNode }) {
 
   const reset = useCallback(() => {
     setDraftState(defaultDraft)
+    setPendingFiles({})
+    setPaymentProofFileState(null)
   }, [])
 
   return (
     <RegistrationContext.Provider
       value={{
         draft,
+        pendingFiles,
+        paymentProofFile,
         setDraft,
+        setMemberFile,
+        setPaymentProofFile,
         nextStep,
         prevStep,
         goToStep,

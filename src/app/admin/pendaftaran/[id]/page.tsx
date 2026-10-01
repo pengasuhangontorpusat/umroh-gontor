@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server'
+import { createServiceClient } from '@/lib/supabase/server'
 import { notFound } from 'next/navigation'
 import { GroupStatusBadge, DocumentStatusBadge, PaymentStatusBadge } from '@/components/ui/StatusBadge'
 import { formatDate, formatCurrency, maskNik } from '@/lib/utils'
@@ -15,7 +15,7 @@ interface PageProps {
 
 export default async function GroupDetailPage({ params }: PageProps) {
   const { id } = await params
-  const supabase = await createClient()
+  const supabase = await createServiceClient()
 
   const { data: group, error } = await supabase
     .from('registration_groups')
@@ -23,14 +23,17 @@ export default async function GroupDetailPage({ params }: PageProps) {
       *,
       departure_point:departure_points(*),
       package:packages(*),
-      pic_jamaah:jamaahs!pic_jamaah_id(full_name, phone),
-      jamaahs(*, documents(*)),
+      pic_jamaah:jamaahs!fk_pic_jamaah(full_name, phone),
+      jamaahs:jamaahs!jamaahs_group_id_fkey(*, documents(*)),
       payments(*)
     `)
     .eq('id', id)
     .single()
 
-  if (error || !group) notFound()
+  if (error || !group) {
+    if (error) console.error('[admin/pendaftaran/[id]] fetch error:', error)
+    notFound()
+  }
 
   const jamaahs = (group.jamaahs ?? []) as Record<string, unknown>[]
   const payments = (group.payments ?? []) as Record<string, unknown>[]

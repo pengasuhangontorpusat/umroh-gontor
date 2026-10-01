@@ -115,6 +115,44 @@ export async function POST(req: NextRequest) {
       throw new Error('Gagal menyimpan metadata dokumen.')
     }
 
+    // If this is payment proof, also update the payments table record
+    const paymentId = formData.get('paymentId') as string | null
+    if (docType === 'bukti_bayar') {
+      try {
+        if (paymentId) {
+          await supabase
+            .from('payments')
+            .update({
+              drive_file_id: driveFile.id,
+              drive_web_view_url: driveFile.webViewLink,
+              verification_status: 'proof_uploaded',
+            })
+            .eq('id', paymentId)
+        } else {
+          const { data: latestPayment } = await supabase
+            .from('payments')
+            .select('id')
+            .eq('group_id', jamaah.group_id)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle()
+
+          if (latestPayment) {
+            await supabase
+              .from('payments')
+              .update({
+                drive_file_id: driveFile.id,
+                drive_web_view_url: driveFile.webViewLink,
+                verification_status: 'proof_uploaded',
+              })
+              .eq('id', latestPayment.id)
+          }
+        }
+      } catch (pErr) {
+        console.warn('Could not update payment proof record:', pErr)
+      }
+    }
+
     return NextResponse.json({
       document_id: doc.id,
       fileName: uploadName,

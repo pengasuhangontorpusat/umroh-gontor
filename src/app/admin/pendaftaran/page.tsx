@@ -1,12 +1,12 @@
-import { createClient } from '@/lib/supabase/server'
+import { createServiceClient } from '@/lib/supabase/server'
 import { GroupStatusBadge } from '@/components/ui/StatusBadge'
-import { formatDate } from '@/lib/utils'
+import { formatDate, maskNik } from '@/lib/utils'
 import Link from 'next/link'
-import { Button } from '@/components/ui/Button'
-import { Search } from 'lucide-react'
+import { Search, Users, ClipboardList } from 'lucide-react'
 
 interface PageProps {
   searchParams: Promise<{
+    view?: 'groups' | 'jamaahs'
     status?: string
     departure?: string
     q?: string
@@ -18,32 +18,60 @@ const PAGE_SIZE = 20
 
 export default async function PendaftaranPage({ searchParams }: PageProps) {
   const params = await searchParams
+  const view = params.view || 'groups'
   const page = parseInt(params.page ?? '1')
   const offset = (page - 1) * PAGE_SIZE
 
-  const supabase = await createClient()
+  const supabase = await createServiceClient()
 
-  let query = supabase
+  // 1. Groups Query
+  let groupsQuery = supabase
     .from('registration_groups')
-    .select(`
+    .select(
+      `
       *,
       departure_point:departure_points(name),
-      pic_jamaah:jamaahs!pic_jamaah_id(full_name, phone),
-      _count:jamaahs(count)
-    `, { count: 'exact' })
-
-  if (params.status) query = query.eq('group_status', params.status)
-  if (params.q) {
-    query = query.or(
-      `registration_code.ilike.%${params.q}%`
+      pic_jamaah:jamaahs!fk_pic_jamaah(full_name, phone),
+      _count:jamaahs!jamaahs_group_id_fkey(count)
+    `,
+      { count: 'exact' }
     )
+
+  if (params.status) groupsQuery = groupsQuery.eq('group_status', params.status)
+  if (params.q && view === 'groups') {
+    groupsQuery = groupsQuery.ilike('registration_code', `%${params.q}%`)
   }
 
-  const { data: groups, count } = await query
+  const { data: groups, count: totalGroups } = await groupsQuery
     .order('created_at', { ascending: false })
-    .range(offset, offset + PAGE_SIZE - 1)
+    .range(view === 'groups' ? offset : 0, view === 'groups' ? offset + PAGE_SIZE - 1 : 19)
 
-  const totalPages = Math.ceil((count ?? 0) / PAGE_SIZE)
+  // 2. Jamaahs Query
+  let jamaahsQuery = supabase
+    .from('jamaahs')
+    .select(
+      `
+      *,
+      registration_groups!inner(
+        id,
+        registration_code,
+        group_status,
+        departure_point:departure_points(name)
+      )
+    `,
+      { count: 'exact' }
+    )
+
+  if (params.q && view === 'jamaahs') {
+    jamaahsQuery = jamaahsQuery.or(`full_name.ilike.%${params.q}%,nik.ilike.%${params.q}%,phone.ilike.%${params.q}%`)
+  }
+
+  const { data: jamaahs, count: totalJamaahs } = await jamaahsQuery
+    .order('created_at', { ascending: false })
+    .range(view === 'jamaahs' ? offset : 0, view === 'jamaahs' ? offset + PAGE_SIZE - 1 : 19)
+
+  const activeCount = view === 'groups' ? (totalGroups ?? 0) : (totalJamaahs ?? 0)
+  const totalPages = Math.ceil(activeCount / PAGE_SIZE)
 
   const GROUP_STATUSES = [
     { value: '', label: 'Semua Status' },
@@ -57,131 +85,266 @@ export default async function PendaftaranPage({ searchParams }: PageProps) {
 
   return (
     <div className="space-y-5">
-      <div className="flex items-center justify-between gap-4">
+      {/* Header */}
+      <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="text-xl font-semibold text-[var(--text-primary)]">Pendaftaran</h1>
+          <h1 className="text-xl font-bold text-[var(--text-primary)]">Pendaftaran & Jamaah</h1>
           <p className="text-sm text-[var(--text-secondary)] mt-0.5">
-            {count ?? 0} total pendaftaran
+            Kelola data pendaftaran rombongan dan seluruh jamaah terdaftar.
           </p>
         </div>
       </div>
 
+      {/* Tabs */}
+      <div className="flex items-center gap-2 border-b border-[var(--border)]">
+        <Link
+          href={`/admin/pendaftaran?view=groups${params.status ? `&status=${params.status}` : ''}`}
+          className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors ${
+            view === 'groups'
+              ? 'border-[var(--primary)] text-[var(--primary)]'
+              : 'border-transparent text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+          }`}
+        >
+          <ClipboardList className="w-4 h-4" />
+          Pendaftaran Kelompok ({totalGroups ?? 0})
+        </Link>
+        <Link
+          href={`/admin/pendaftaran?view=jamaahs`}
+          className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors ${
+            view === 'jamaahs'
+              ? 'border-[var(--primary)] text-[var(--primary)]'
+              : 'border-transparent text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+          }`}
+        >
+          <Users className="w-4 h-4" />
+          Semua Data Jamaah ({totalJamaahs ?? 0})
+        </Link>
+      </div>
+
       {/* Filters */}
-      <div className="flex flex-wrap gap-2 items-center">
-        <form className="flex items-center gap-2">
+      <div className="flex flex-wrap gap-2 items-center justify-between">
+        <form className="flex items-center gap-2 flex-wrap">
+          <input type="hidden" name="view" value={view} />
           <div className="relative">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--text-muted)]" />
             <input
               name="q"
               defaultValue={params.q}
-              placeholder="Cari kode..."
-              className="h-8 pl-8 pr-3 text-sm border border-[var(--border)] rounded-[var(--radius-md)] focus:outline-none focus:border-[var(--primary)] w-40"
+              placeholder={view === 'groups' ? 'Cari kode...' : 'Cari nama / NIK / no HP...'}
+              className="h-8 pl-8 pr-3 text-sm border border-[var(--border)] rounded-[var(--radius-md)] focus:outline-none focus:border-[var(--primary)] w-48 sm:w-64"
             />
           </div>
-          <select
-            name="status"
-            defaultValue={params.status ?? ''}
-            className="h-8 px-2.5 text-sm border border-[var(--border)] rounded-[var(--radius-md)] focus:outline-none focus:border-[var(--primary)] bg-white"
-          >
-            {GROUP_STATUSES.map((s) => (
-              <option key={s.value} value={s.value}>
-                {s.label}
-              </option>
-            ))}
-          </select>
+
+          {view === 'groups' && (
+            <select
+              name="status"
+              defaultValue={params.status ?? ''}
+              className="h-8 px-2.5 text-sm border border-[var(--border)] rounded-[var(--radius-md)] focus:outline-none focus:border-[var(--primary)] bg-white"
+            >
+              {GROUP_STATUSES.map((s) => (
+                <option key={s.value} value={s.value}>
+                  {s.label}
+                </option>
+              ))}
+            </select>
+          )}
+
           <button
             type="submit"
             className="h-8 px-3 text-sm bg-[var(--primary)] text-white rounded-[var(--radius-md)] hover:bg-[var(--primary-hover)] transition-colors"
           >
             Filter
           </button>
+          {Boolean(params.q || params.status) && (
+            <Link
+              href={`/admin/pendaftaran?view=${view}`}
+              className="h-8 px-2.5 text-xs flex items-center text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+            >
+              Reset
+            </Link>
+          )}
         </form>
       </div>
 
-      {/* Table */}
-      <div className="bg-white border border-[var(--border)] rounded-[var(--radius-lg)] overflow-hidden">
-        {!groups?.length ? (
-          <div className="py-16 text-center">
-            <p className="text-sm text-[var(--text-muted)]">Tidak ada pendaftaran ditemukan.</p>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-[var(--surface)] border-b border-[var(--border)]">
-                <tr>
-                  <th className="text-left px-4 py-3 text-xs font-medium text-[var(--text-muted)]">Kode</th>
-                  <th className="text-left px-4 py-3 text-xs font-medium text-[var(--text-muted)]">PIC</th>
-                  <th className="text-right px-4 py-3 text-xs font-medium text-[var(--text-muted)]">Jamaah</th>
-                  <th className="text-left px-4 py-3 text-xs font-medium text-[var(--text-muted)]">Keberangkatan</th>
-                  <th className="text-left px-4 py-3 text-xs font-medium text-[var(--text-muted)]">Status</th>
-                  <th className="text-left px-4 py-3 text-xs font-medium text-[var(--text-muted)]">Tanggal</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[var(--border)]">
-                {groups.map((group: Record<string, unknown>) => (
-                  <tr key={group.id as string} className="hover:bg-[var(--surface)] transition-colors">
-                    <td className="px-4 py-3">
-                      <Link
-                        href={`/admin/pendaftaran/${group.id as string}`}
-                        className="font-mono text-[var(--primary)] hover:underline font-medium text-sm"
-                      >
-                        {group.registration_code as string}
-                      </Link>
-                    </td>
-                    <td className="px-4 py-3">
-                      <p className="text-[var(--text-primary)] font-medium">
-                        {((group.pic_jamaah as Record<string, unknown>)?.full_name as string) ?? '—'}
-                      </p>
-                      <p className="text-xs text-[var(--text-muted)]">
-                        {((group.pic_jamaah as Record<string, unknown>)?.phone as string) ?? ''}
-                      </p>
-                    </td>
-                    <td className="px-4 py-3 text-right text-[var(--text-secondary)]">
-                      {(group._count as number) ?? 0}
-                    </td>
-                    <td className="px-4 py-3 text-[var(--text-secondary)]">
-                      {((group.departure_point as Record<string, unknown>)?.name as string) ?? '—'}
-                    </td>
-                    <td className="px-4 py-3">
-                      <GroupStatusBadge status={group.group_status as never} />
-                    </td>
-                    <td className="px-4 py-3 text-xs text-[var(--text-muted)]">
-                      {formatDate(group.created_at as string)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-
-        {/* Pagination */}
-        {totalPages > 1 && (
-          <div className="px-4 py-3 border-t border-[var(--border)] flex items-center justify-between">
-            <p className="text-xs text-[var(--text-muted)]">
-              Halaman {page} dari {totalPages}
-            </p>
-            <div className="flex gap-1">
-              {page > 1 && (
-                <Link
-                  href={`?page=${page - 1}${params.status ? `&status=${params.status}` : ''}`}
-                  className="px-3 py-1.5 text-xs border border-[var(--border)] rounded hover:bg-[var(--surface)] transition-colors"
-                >
-                  Sebelumnya
-                </Link>
-              )}
-              {page < totalPages && (
-                <Link
-                  href={`?page=${page + 1}${params.status ? `&status=${params.status}` : ''}`}
-                  className="px-3 py-1.5 text-xs border border-[var(--border)] rounded hover:bg-[var(--surface)] transition-colors"
-                >
-                  Berikutnya
-                </Link>
-              )}
+      {/* Main Content */}
+      {view === 'groups' ? (
+        /* TABLE GROUPS */
+        <div className="bg-white border border-[var(--border)] rounded-[var(--radius-lg)] overflow-hidden shadow-sm">
+          {!groups?.length ? (
+            <div className="py-16 text-center">
+              <p className="text-sm text-[var(--text-muted)]">Tidak ada pendaftaran ditemukan.</p>
             </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-[var(--surface)] border-b border-[var(--border)]">
+                  <tr>
+                    <th className="text-left px-4 py-3 text-xs font-semibold text-[var(--text-muted)]">Kode</th>
+                    <th className="text-left px-4 py-3 text-xs font-semibold text-[var(--text-muted)]">PIC / Kontak</th>
+                    <th className="text-center px-4 py-3 text-xs font-semibold text-[var(--text-muted)]">Jamaah</th>
+                    <th className="text-left px-4 py-3 text-xs font-semibold text-[var(--text-muted)]">Keberangkatan</th>
+                    <th className="text-left px-4 py-3 text-xs font-semibold text-[var(--text-muted)]">Status</th>
+                    <th className="text-left px-4 py-3 text-xs font-semibold text-[var(--text-muted)]">Tanggal Daftar</th>
+                    <th className="text-center px-4 py-3 text-xs font-semibold text-[var(--text-muted)]">Aksi</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[var(--border)]">
+                  {groups.map((group: Record<string, unknown>) => (
+                    <tr key={group.id as string} className="hover:bg-slate-50 transition-colors">
+                      <td className="px-4 py-3">
+                        <Link
+                          href={`/admin/pendaftaran/${group.id as string}`}
+                          className="font-mono font-bold text-[var(--primary)] hover:underline text-sm"
+                        >
+                          {group.registration_code as string}
+                        </Link>
+                        <div className="text-[10px] text-[var(--text-muted)] capitalize">
+                          {group.type === 'family' ? 'Keluarga' : 'Individu'}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3">
+                        <p className="text-[var(--text-primary)] font-medium">
+                          {((group.pic_jamaah as Record<string, unknown>)?.full_name as string) ?? '—'}
+                        </p>
+                        <p className="text-xs text-[var(--text-muted)]">
+                          {((group.pic_jamaah as Record<string, unknown>)?.phone as string) ?? ''}
+                        </p>
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                          {((group._count as Record<string, number>)?.count as number) ?? 1} org
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-[var(--text-secondary)]">
+                        {((group.departure_point as Record<string, unknown>)?.name as string) ?? '—'}
+                      </td>
+                      <td className="px-4 py-3">
+                        <GroupStatusBadge status={group.group_status as never} />
+                      </td>
+                      <td className="px-4 py-3 text-xs text-[var(--text-muted)]">
+                        {formatDate(group.created_at as string)}
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        <Link
+                          href={`/admin/pendaftaran/${group.id as string}`}
+                          className="inline-flex items-center px-2.5 py-1 text-xs font-medium rounded bg-[var(--surface)] text-[var(--text-primary)] border border-[var(--border)] hover:bg-[var(--primary)] hover:text-white transition-colors"
+                        >
+                          Kelola & Verifikasi
+                        </Link>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      ) : (
+        /* TABLE ALL JAMAAHS */
+        <div className="bg-white border border-[var(--border)] rounded-[var(--radius-lg)] overflow-hidden shadow-sm">
+          {!jamaahs?.length ? (
+            <div className="py-16 text-center">
+              <p className="text-sm text-[var(--text-muted)]">Tidak ada data jamaah ditemukan.</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-[var(--surface)] border-b border-[var(--border)]">
+                  <tr>
+                    <th className="text-left px-4 py-3 text-xs font-semibold text-[var(--text-muted)]">Nama Jamaah</th>
+                    <th className="text-left px-4 py-3 text-xs font-semibold text-[var(--text-muted)]">L/P</th>
+                    <th className="text-left px-4 py-3 text-xs font-semibold text-[var(--text-muted)]">NIK</th>
+                    <th className="text-left px-4 py-3 text-xs font-semibold text-[var(--text-muted)]">No. HP</th>
+                    <th className="text-left px-4 py-3 text-xs font-semibold text-[var(--text-muted)]">No. Paspor</th>
+                    <th className="text-left px-4 py-3 text-xs font-semibold text-[var(--text-muted)]">Kebutuhan Khusus</th>
+                    <th className="text-left px-4 py-3 text-xs font-semibold text-[var(--text-muted)]">Kode Rombongan</th>
+                    <th className="text-center px-4 py-3 text-xs font-semibold text-[var(--text-muted)]">Aksi</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[var(--border)]">
+                  {jamaahs.map((j: Record<string, unknown>) => {
+                    const group = j.registration_groups as Record<string, unknown>
+                    return (
+                      <tr key={j.id as string} className="hover:bg-slate-50 transition-colors">
+                        <td className="px-4 py-3">
+                          <p className="font-semibold text-[var(--text-primary)]">{j.full_name as string}</p>
+                          <p className="text-xs text-[var(--text-muted)]">
+                            {j.birth_date ? formatDate(j.birth_date as string) : '—'} ({j.relationship_to_pic as string || 'PIC'})
+                          </p>
+                        </td>
+                        <td className="px-4 py-3 text-xs text-[var(--text-secondary)]">
+                          {j.gender === 'male' ? 'Laki-laki' : 'Perempuan'}
+                        </td>
+                        <td className="px-4 py-3 text-xs font-mono text-[var(--text-secondary)]">
+                          {j.nik ? maskNik(j.nik as string) : '—'}
+                        </td>
+                        <td className="px-4 py-3 text-xs text-[var(--text-secondary)]">
+                          {(j.phone as string) || '—'}
+                        </td>
+                        <td className="px-4 py-3 text-xs font-mono text-[var(--text-secondary)]">
+                          {(j.passport_number as string) || 'Belum ada'}
+                        </td>
+                        <td className="px-4 py-3">
+                          {Boolean(j.has_disability) ? (
+                            <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-900 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded">
+                              ♿ {String(j.disability_description || 'Kursi Roda')}
+                            </span>
+                          ) : (
+                            <span className="text-xs text-[var(--text-muted)]">—</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3">
+                          <Link
+                            href={`/admin/pendaftaran/${group?.id as string}`}
+                            className="font-mono text-xs font-bold text-[var(--primary)] hover:underline"
+                          >
+                            {group?.registration_code as string}
+                          </Link>
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          <Link
+                            href={`/admin/pendaftaran/${group?.id as string}`}
+                            className="inline-flex items-center px-2 py-1 text-xs font-medium rounded bg-[var(--surface)] text-[var(--text-primary)] border border-[var(--border)] hover:bg-[var(--primary)] hover:text-white transition-colors"
+                          >
+                            Detail
+                          </Link>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="px-4 py-3 border border-[var(--border)] bg-white rounded-[var(--radius-lg)] flex items-center justify-between">
+          <p className="text-xs text-[var(--text-muted)]">
+            Halaman {page} dari {totalPages} (Total {activeCount} {view === 'groups' ? 'kelompok' : 'jamaah'})
+          </p>
+          <div className="flex gap-1">
+            {page > 1 && (
+              <Link
+                href={`?view=${view}&page=${page - 1}${params.status ? `&status=${params.status}` : ''}${params.q ? `&q=${params.q}` : ''}`}
+                className="px-3 py-1.5 text-xs border border-[var(--border)] rounded hover:bg-[var(--surface)] transition-colors"
+              >
+                Sebelumnya
+              </Link>
+            )}
+            {page < totalPages && (
+              <Link
+                href={`?view=${view}&page=${page + 1}${params.status ? `&status=${params.status}` : ''}${params.q ? `&q=${params.q}` : ''}`}
+                className="px-3 py-1.5 text-xs border border-[var(--border)] rounded hover:bg-[var(--surface)] transition-colors"
+              >
+                Berikutnya
+              </Link>
+            )}
           </div>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   )
 }

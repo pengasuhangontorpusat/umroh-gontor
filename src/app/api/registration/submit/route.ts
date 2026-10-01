@@ -176,17 +176,24 @@ export async function POST(req: NextRequest) {
       .eq('id', group.id)
 
     // Create payment record
+    let paymentId: string | null = null
     if (payment_type) {
       const baseAmount = payment_type === 'full' ? Number(pkg.price) : Number(pkg.dp_amount)
       const amount = baseAmount * (members.length || 1)
-      await supabase.from('payments').insert({
-        group_id: group.id,
-        payer_jamaah_id: picJamaah.id,
-        payment_type,
-        amount,
-        payment_date: payment_date || null,
-        verification_status: 'pending',
-      })
+      const { data: payData } = await supabase
+        .from('payments')
+        .insert({
+          group_id: group.id,
+          payer_jamaah_id: picJamaah.id,
+          payment_type,
+          amount,
+          payment_date: payment_date || null,
+          verification_status: 'pending',
+        })
+        .select('id')
+        .single()
+
+      if (payData) paymentId = payData.id
     }
 
     // Create audit log
@@ -209,6 +216,7 @@ export async function POST(req: NextRequest) {
       group_id: group.id,
       registration_code: registrationCode,
       jamaah_ids: jamaahs.map((j) => j.id),
+      payment_id: paymentId,
     })
   } catch (err) {
     console.error('[registration/submit]', err)

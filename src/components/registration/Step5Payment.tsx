@@ -9,6 +9,7 @@ import { Package } from '@/types'
 import { createClient } from '@/lib/supabase/client'
 import { cn } from '@/lib/utils'
 import { CheckCircle2, AlertCircle } from 'lucide-react'
+import { FileUpload } from '@/components/ui/FileUpload'
 
 const FALLBACK_PACKAGE: Package = {
   id: '99999999-9999-9999-9999-999999999999',
@@ -24,7 +25,7 @@ const FALLBACK_PACKAGE: Package = {
 }
 
 export function Step5Payment() {
-  const { draft, setDraft, nextStep, prevStep } = useRegistration()
+  const { draft, setDraft, nextStep, prevStep, paymentProofFile, setPaymentProofFile } = useRegistration()
   const [pkg, setPkg] = useState<Package>(FALLBACK_PACKAGE)
 
   useEffect(() => {
@@ -133,17 +134,31 @@ export function Step5Payment() {
         </div>
       )}
 
-      {/* Date */}
+      {/* Date & Upload */}
       {draft.payment_type && (
-        <div className="max-w-xs">
-          <Input
-            label="Tanggal Transfer"
-            id="payment-date"
-            type="date"
-            required
-            value={draft.payment_date}
-            onChange={(e) => setDraft({ payment_date: e.target.value })}
-          />
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <Input
+              label="Tanggal Transfer"
+              id="payment-date"
+              type="date"
+              required
+              value={draft.payment_date}
+              onChange={(e) => setDraft({ payment_date: e.target.value })}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold text-[var(--text-secondary)]">
+              Bukti Transfer (Opsional)
+            </label>
+            <FileUpload
+              id="payment-proof"
+              currentFileName={paymentProofFile?.name}
+              onFileSelect={async (file) => {
+                setPaymentProofFile(file)
+              }}
+            />
+          </div>
         </div>
       )}
 
