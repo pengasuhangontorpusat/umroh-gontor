@@ -34,26 +34,21 @@ export async function GET(req: NextRequest) {
       )
     }
 
-    // Query jamaahs
+    // Query jamaahs with complete details and documents
     const { data: jamaahs, error: jamaahErr } = await supabase
       .from('jamaahs')
       .select(`
-        id,
-        registration_order,
-        full_name,
-        gender,
-        relationship_to_pic,
-        passport_status,
-        has_disability,
-        disability_description,
-        medical_history,
-        clothing_size,
+        *,
         documents (
           id,
           document_type,
+          file_name,
+          mime_type,
+          file_size,
           verification_status,
-          rejection_reason,
-          drive_web_view_url
+          verification_note,
+          drive_web_view_url,
+          created_at
         )
       `)
       .eq('group_id', group.id)
@@ -68,7 +63,9 @@ export async function GET(req: NextRequest) {
         amount,
         payment_date,
         verification_status,
-        verification_note
+        verification_note,
+        drive_web_view_url,
+        created_at
       `)
       .eq('group_id', group.id)
       .order('created_at', { ascending: true })
