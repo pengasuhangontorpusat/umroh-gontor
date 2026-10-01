@@ -2,14 +2,14 @@
 
 import { useState, useEffect, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
 import { RegistrationGroup, Jamaah, Document, Payment } from '@/types'
 import { GroupStatusBadge, DocumentStatusBadge, PaymentStatusBadge } from '@/components/ui/StatusBadge'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { formatDate, formatCurrency } from '@/lib/utils'
 import { Skeleton } from '@/components/ui/Skeleton'
-import { CheckCircle2, Clock, AlertCircle, Search } from 'lucide-react'
+import { FileUpload } from '@/components/ui/FileUpload'
+import { CheckCircle2, Clock, AlertCircle, Search, FileText, X, Check } from 'lucide-react'
 import Link from 'next/link'
 
 function StatusContent() {
@@ -21,6 +21,17 @@ function StatusContent() {
   const [jamaahs, setJamaahs] = useState<Jamaah[]>([])
   const [payments, setPayments] = useState<Payment[]>([])
   const [error, setError] = useState<string | null>(null)
+
+  // Passport update modal state
+  const [passportModalJamaah, setPassportModalJamaah] = useState<Jamaah | null>(null)
+  const [passportNumber, setPassportNumber] = useState('')
+  const [passportPlace, setPassportPlace] = useState('')
+  const [passportIssueDate, setPassportIssueDate] = useState('')
+  const [passportExpiryDate, setPassportExpiryDate] = useState('')
+  const [passportScanFile, setPassportScanFile] = useState<File | null>(null)
+  const [savingPassport, setSavingPassport] = useState(false)
+  const [passportSuccessMsg, setPassportSuccessMsg] = useState<string | null>(null)
+  const [passportErrorMsg, setPassportErrorMsg] = useState<string | null>(null)
 
   useEffect(() => {
     if (kode) fetchStatus(kode)
@@ -60,6 +71,75 @@ function StatusContent() {
     if (inputKode.trim()) setKode(inputKode.trim())
   }
 
+  function openPassportModal(j: Jamaah) {
+    setPassportModalJamaah(j)
+    setPassportNumber(j.passport_number || '')
+    setPassportPlace(j.passport_issue_place || '')
+    setPassportIssueDate(j.passport_issue_date || '')
+    setPassportExpiryDate(j.passport_expiry_date || '')
+    setPassportScanFile(null)
+    setPassportSuccessMsg(null)
+    setPassportErrorMsg(null)
+  }
+
+  async function handleSavePassport(e: React.FormEvent) {
+    e.preventDefault()
+    if (!passportModalJamaah || !group) return
+
+    setSavingPassport(true)
+    setPassportErrorMsg(null)
+    setPassportSuccessMsg(null)
+
+    try {
+      // 1. Upload scan paspor if user attached one
+      if (passportScanFile) {
+        const formData = new FormData()
+        formData.append('file', passportScanFile)
+        formData.append('jamaahId', passportModalJamaah.id)
+        formData.append('docType', 'paspor')
+
+        const uploadRes = await fetch('/api/upload', {
+          method: 'POST',
+          body: formData,
+        })
+
+        if (!uploadRes.ok) {
+          const uErr = await uploadRes.json().catch(() => ({}))
+          console.warn('[upload] scan paspor failed:', uErr)
+        }
+      }
+
+      // 2. Update passport text data
+      const res = await fetch('/api/registration/update-passport', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          registration_code: group.registration_code,
+          jamaah_id: passportModalJamaah.id,
+          passport_number: passportNumber,
+          passport_issue_place: passportPlace,
+          passport_issue_date: passportIssueDate,
+          passport_expiry_date: passportExpiryDate,
+        }),
+      })
+
+      const data = await res.json()
+      if (!res.ok) {
+        throw new Error(data.error || 'Gagal menyimpan data paspor.')
+      }
+
+      setPassportSuccessMsg('Data paspor berhasil diperbarui!')
+      setTimeout(() => {
+        setPassportModalJamaah(null)
+        if (kode) fetchStatus(kode)
+      }, 1200)
+    } catch (err) {
+      setPassportErrorMsg(err instanceof Error ? err.message : 'Terjadi kendala saat menyimpan paspor.')
+    } finally {
+      setSavingPassport(false)
+    }
+  }
+
   const TIMELINE = [
     { label: 'Data Pendaftaran', key: 'data' },
     { label: 'Dokumen', key: 'dokumen' },
@@ -95,44 +175,63 @@ function StatusContent() {
           >
             Umrah 100 Tahun Gontor
           </Link>
+          <Link
+            href="/daftar"
+            className="text-xs text-[var(--primary)] font-medium hover:underline"
+          >
+            Form Pendaftaran
+          </Link>
         </div>
       </header>
 
-      <main className="max-w-3xl mx-auto px-4 sm:px-6 py-8 space-y-6">
-        <div>
-          <h1 className="text-xl font-semibold text-[var(--text-primary)]">Status Pendaftaran</h1>
+      <main className="max-w-3xl mx-auto px-4 sm:px-6 py-8">
+        {/* Title */}
+        <div className="mb-6">
+          <h1 className="text-2xl font-bold text-[var(--text-primary)]">
+            Cek Status Pendaftaran
+          </h1>
           <p className="text-sm text-[var(--text-secondary)] mt-1">
-            Masukkan kode pendaftaran untuk melihat status.
+            Pantau status pendaftaran, verifikasi dokumen, dan lengkapi paspor jamaah Anda.
           </p>
         </div>
 
         {/* Search */}
-        <form onSubmit={handleSearch} className="flex gap-2">
-          <Input
-            id="kode-input"
-            placeholder="UMR-2026-G0001"
-            value={inputKode}
-            onChange={(e) => setInputKode(e.target.value.toUpperCase())}
-            className="flex-1 font-mono"
-          />
-          <Button type="submit" isLoading={loading}>
-            <Search className="w-4 h-4" />
-            <span className="hidden sm:inline">Cari</span>
-          </Button>
+        <form onSubmit={handleSearch} className="mb-6">
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+              <input
+                type="text"
+                value={inputKode}
+                onChange={(e) => setInputKode(e.target.value.toUpperCase())}
+                placeholder="Masukkan Kode Pendaftaran (contoh: UMR-2026-0003)"
+                className="w-full h-11 pl-9 pr-3 rounded-[var(--radius-md)] border border-slate-300 bg-white text-sm text-slate-900 font-mono font-medium placeholder:text-slate-400 focus:outline-none focus:border-emerald-700 focus:ring-1 focus:ring-emerald-700 shadow-xs uppercase"
+              />
+            </div>
+            <Button type="submit" disabled={loading} size="lg">
+              {loading ? 'Memeriksa...' : 'Cari'}
+            </Button>
+          </div>
         </form>
 
         {/* Error */}
         {error && (
-          <div className="flex items-start gap-2 p-3 bg-[var(--danger-light)] rounded-[var(--radius-md)]">
-            <AlertCircle className="w-4 h-4 text-[var(--danger)] flex-shrink-0 mt-0.5" />
-            <p className="text-sm text-[var(--danger-foreground)]">{error}</p>
+          <div className="p-4 bg-red-50 border border-red-200 rounded-[var(--radius-lg)] flex items-start gap-3 mb-6">
+            <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-medium text-red-900">{error}</p>
+              <p className="text-xs text-red-700 mt-0.5">
+                Pastikan kode pendaftaran yang dimasukkan sesuai dengan bukti yang Anda terima saat mendaftar.
+              </p>
+            </div>
           </div>
         )}
 
         {/* Loading skeleton */}
         {loading && (
           <div className="space-y-4">
-            <Skeleton className="h-20 w-full" />
+            <Skeleton className="h-28 w-full" />
+            <Skeleton className="h-44 w-full" />
             <Skeleton className="h-32 w-full" />
           </div>
         )}
@@ -140,9 +239,9 @@ function StatusContent() {
         {/* Result */}
         {!loading && group && (
           <div className="space-y-5 animate-fade-in">
-            {/* Header */}
-            <div className="bg-white border border-[var(--border)] rounded-[var(--radius-lg)] p-5">
-              <div className="flex items-start justify-between gap-4 mb-4">
+            {/* Card info pendaftaran */}
+            <div className="bg-white border border-[var(--border)] rounded-[var(--radius-lg)] p-5 shadow-xs">
+              <div className="flex flex-wrap items-start justify-between gap-4 mb-4">
                 <div>
                   <p className="text-xs text-[var(--text-muted)]">Kode Pendaftaran</p>
                   <p className="text-2xl font-bold font-mono text-[var(--text-primary)]">
@@ -152,62 +251,77 @@ function StatusContent() {
                 <GroupStatusBadge status={group.group_status} />
               </div>
 
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-sm">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm border-t border-[var(--border)] pt-4">
                 <div>
-                  <p className="text-[var(--text-muted)] text-xs">Jenis</p>
-                  <p className="font-medium text-[var(--text-primary)]">
+                  <p className="text-xs text-[var(--text-muted)]">Jenis Pendaftaran</p>
+                  <p className="font-semibold text-[var(--text-primary)] capitalize">
                     {group.type === 'family' ? 'Keluarga' : 'Individu'}
                   </p>
                 </div>
                 <div>
-                  <p className="text-[var(--text-muted)] text-xs">Jumlah Jamaah</p>
-                  <p className="font-medium text-[var(--text-primary)]">{jamaahs.length} orang</p>
+                  <p className="text-xs text-[var(--text-muted)]">Jumlah Jamaah</p>
+                  <p className="font-semibold text-[var(--text-primary)]">
+                    {jamaahs.length} Orang
+                  </p>
                 </div>
-                {group.departure_point != null && (
-                  <div>
-                    <p className="text-[var(--text-muted)] text-xs">Keberangkatan</p>
-                    <p className="font-medium text-[var(--text-primary)]">
-                      {(group.departure_point as { name: string })?.name}
-                    </p>
-                  </div>
-                )}
+                <div>
+                  <p className="text-xs text-[var(--text-muted)]">Tanggal Daftar</p>
+                  <p className="font-semibold text-[var(--text-primary)]">
+                    {formatDate(group.created_at)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-[var(--text-muted)]">Status Berkas</p>
+                  <p className="font-semibold text-[var(--text-primary)]">
+                    {group.group_status === 'verified' ? 'Terverifikasi' : 'Dalam Proses'}
+                  </p>
+                </div>
               </div>
             </div>
 
             {/* Timeline */}
-            <div className="bg-white border border-[var(--border)] rounded-[var(--radius-lg)] p-5">
-              <p className="text-sm font-semibold text-[var(--text-primary)] mb-4">Progress</p>
-              <div className="flex items-start gap-0">
-                {TIMELINE.map((step, i) => {
-                  const currentStep = getTimelineStep(group.group_status)
-                  const isDone = i < currentStep
-                  const isActive = i === currentStep
-                  const isLast = i === TIMELINE.length - 1
+            <div className="bg-white border border-[var(--border)] rounded-[var(--radius-lg)] p-5 shadow-xs">
+              <p className="text-sm font-semibold text-[var(--text-primary)] mb-4">
+                Progres Pendaftaran
+              </p>
+              <div className="flex items-center justify-between">
+                {TIMELINE.map((step, index) => {
+                  const currentStepIndex = getTimelineStep(group.group_status)
+                  const isDone = index < currentStepIndex
+                  const isActive = index === currentStepIndex
 
                   return (
-                    <div key={step.key} className={`flex-1 flex flex-col items-center ${!isLast ? '' : ''}`}>
-                      <div className="relative w-full flex justify-center">
-                        {/* Line left */}
-                        {i > 0 && (
-                          <div className={`absolute top-3 right-1/2 left-0 h-0.5 ${isDone || isActive ? 'bg-[var(--primary)]' : 'bg-[var(--border)]'}`} />
-                        )}
-                        {/* Line right */}
-                        {!isLast && (
-                          <div className={`absolute top-3 left-1/2 right-0 h-0.5 ${isDone ? 'bg-[var(--primary)]' : 'bg-[var(--border)]'}`} />
-                        )}
-                        {/* Circle */}
-                        <div className={`relative z-10 w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 ${
-                          isDone
-                            ? 'bg-[var(--primary)]'
-                            : isActive
-                            ? 'border-2 border-[var(--primary)] bg-white'
-                            : 'border-2 border-[var(--border)] bg-white'
-                        }`}>
+                    <div key={step.key} className="flex-1 flex flex-col items-center relative">
+                      {index > 0 && (
+                        <div
+                          className={`absolute top-3.5 right-1/2 w-full h-0.5 -translate-y-1/2 ${
+                            index <= currentStepIndex ? 'bg-[var(--primary)]' : 'bg-[var(--border)]'
+                          }`}
+                        />
+                      )}
+                      <div className="relative z-10">
+                        <div
+                          className={`w-7 h-7 rounded-full flex items-center justify-center ${
+                            isDone
+                              ? 'bg-[var(--primary)]'
+                              : isActive
+                              ? 'border-2 border-[var(--primary)] bg-white'
+                              : 'border-2 border-[var(--border)] bg-white'
+                          }`}
+                        >
                           {isDone && <CheckCircle2 className="w-3.5 h-3.5 text-white" />}
                           {isActive && <Clock className="w-3 h-3 text-[var(--primary)]" />}
                         </div>
                       </div>
-                      <p className={`text-xs mt-2 text-center ${isActive ? 'text-[var(--primary)] font-semibold' : isDone ? 'text-[var(--text-secondary)]' : 'text-[var(--text-muted)]'}`}>
+                      <p
+                        className={`text-xs mt-2 text-center ${
+                          isActive
+                            ? 'text-[var(--primary)] font-semibold'
+                            : isDone
+                            ? 'text-[var(--text-secondary)]'
+                            : 'text-[var(--text-muted)]'
+                        }`}
+                      >
                         {step.label}
                       </p>
                     </div>
@@ -216,48 +330,75 @@ function StatusContent() {
               </div>
             </div>
 
-            {/* Jamaah status */}
+            {/* Jamaah List */}
             {jamaahs.length > 0 && (
-              <div className="bg-white border border-[var(--border)] rounded-[var(--radius-lg)] overflow-hidden">
-                <div className="px-5 py-3 bg-[var(--surface)] border-b border-[var(--border)]">
-                  <p className="text-sm font-semibold text-[var(--text-primary)]">Jamaah</p>
+              <div className="bg-white border border-[var(--border)] rounded-[var(--radius-lg)] overflow-hidden shadow-xs">
+                <div className="px-5 py-3.5 bg-[var(--surface)] border-b border-[var(--border)] flex items-center justify-between">
+                  <p className="text-sm font-semibold text-[var(--text-primary)]">
+                    Data Anggota & Paspor ({jamaahs.length} Jamaah)
+                  </p>
                 </div>
                 <div className="divide-y divide-[var(--border)]">
                   {jamaahs.map((jamaah) => {
                     const docs = (jamaah as Jamaah & { documents?: Document[] }).documents ?? []
-                    const allVerified = docs.every((d) => d.verification_status === 'verified')
-                    const someRevision = docs.some((d) => d.verification_status === 'revision_required')
+                    const hasPassportDoc = docs.some((d) => d.document_type === 'paspor')
+                    const hasPassportNumber = Boolean(jamaah.passport_number)
 
                     return (
-                      <div key={jamaah.id} className="px-5 py-3">
-                        <div className="flex items-center justify-between gap-3">
+                      <div key={jamaah.id} className="p-4 sm:p-5">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                           <div>
-                            <p className="text-sm font-medium text-[var(--text-primary)]">
-                              {jamaah.full_name}
+                            <div className="flex items-center gap-2">
+                              <p className="text-sm font-bold text-slate-900">{jamaah.full_name}</p>
+                              <span className="text-xs text-slate-500 bg-slate-100 px-2 py-0.5 rounded">
+                                {jamaah.relationship_to_pic || 'Pendaftar'}
+                              </span>
+                            </div>
+
+                            <p className="text-xs text-slate-500 mt-1">
+                              NIK: {jamaah.nik || '—'} · Tgl Lahir: {jamaah.birth_date ? formatDate(jamaah.birth_date) : '—'}
                             </p>
-                            <p className="text-xs text-[var(--text-muted)]">
-                              {jamaah.relationship_to_pic || 'Pendaftar'}
-                            </p>
+
+                            {/* Status Paspor */}
+                            <div className="mt-2 flex items-center gap-2 flex-wrap">
+                              {hasPassportNumber ? (
+                                <span className="inline-flex items-center gap-1 text-xs font-mono font-medium text-emerald-800 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded">
+                                  ✓ Paspor: {jamaah.passport_number}
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 text-xs font-medium text-amber-800 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded">
+                                  ⚠ Paspor Belum Dilengkapi
+                                </span>
+                              )}
+
+                              {hasPassportDoc ? (
+                                <span className="text-[11px] text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                                  Scan Paspor Terunggah
+                                </span>
+                              ) : (
+                                <span className="text-[11px] text-slate-500 bg-slate-100 px-2 py-0.5 rounded">
+                                  Scan Paspor Belum Ada
+                                </span>
+                              )}
+                            </div>
+
                             {Boolean(jamaah.has_disability) && (
-                              <div className="mt-1 inline-flex items-center gap-1 text-[11px] bg-amber-50 text-amber-800 px-2 py-0.5 rounded border border-amber-200">
-                                <span>♿ Bantuan / Disabilitas: {jamaah.disability_description || 'Kursi Roda'}</span>
+                              <div className="mt-2 inline-flex items-center gap-1 text-[11px] bg-amber-50 text-amber-900 px-2.5 py-0.5 rounded border border-amber-200">
+                                <span>♿ Kebutuhan Khusus: {jamaah.disability_description || 'Kursi Roda'}</span>
                               </div>
                             )}
                           </div>
-                          <div className="flex items-center gap-2">
-                            {someRevision ? (
-                              <span className="text-xs text-[var(--warning-foreground)] bg-[var(--warning-light)] px-2 py-0.5 rounded">
-                                Perlu Perbaikan
-                              </span>
-                            ) : allVerified && docs.length > 0 ? (
-                              <span className="text-xs text-[var(--success-foreground)] bg-[var(--success-light)] px-2 py-0.5 rounded">
-                                Dokumen Lengkap
-                              </span>
-                            ) : (
-                              <span className="text-xs text-[var(--text-muted)] bg-[var(--surface-muted)] px-2 py-0.5 rounded">
-                                {docs.length} dokumen
-                              </span>
-                            )}
+
+                          {/* Tombol update paspor */}
+                          <div>
+                            <button
+                              type="button"
+                              onClick={() => openPassportModal(jamaah)}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-emerald-800 bg-emerald-50 border border-emerald-300 rounded-md hover:bg-emerald-600 hover:text-white transition-colors shadow-xs"
+                            >
+                              <FileText className="w-3.5 h-3.5" />
+                              {hasPassportNumber ? 'Ubah Data Paspor' : 'Lengkapi Paspor'}
+                            </button>
                           </div>
                         </div>
                       </div>
@@ -269,23 +410,23 @@ function StatusContent() {
 
             {/* Payment status */}
             {payments.length > 0 && (
-              <div className="bg-white border border-[var(--border)] rounded-[var(--radius-lg)] overflow-hidden">
-                <div className="px-5 py-3 bg-[var(--surface)] border-b border-[var(--border)]">
-                  <p className="text-sm font-semibold text-[var(--text-primary)]">Pembayaran</p>
+              <div className="bg-white border border-[var(--border)] rounded-[var(--radius-lg)] overflow-hidden shadow-xs">
+                <div className="px-5 py-3.5 bg-[var(--surface)] border-b border-[var(--border)]">
+                  <p className="text-sm font-semibold text-[var(--text-primary)]">Informasi Pembayaran</p>
                 </div>
                 <div className="divide-y divide-[var(--border)]">
                   {payments.map((payment) => (
-                    <div key={payment.id} className="px-5 py-3 flex items-center justify-between gap-3">
+                    <div key={payment.id} className="p-4 sm:p-5 flex items-center justify-between gap-3">
                       <div>
-                        <p className="text-sm font-medium text-[var(--text-primary)]">
-                          {payment.payment_type === 'full' ? 'Pembayaran Penuh' : 'Down Payment'}
+                        <p className="text-sm font-semibold text-[var(--text-primary)]">
+                          {payment.payment_type === 'full' ? 'Pembayaran Penuh' : 'Down Payment (DP)'}
                         </p>
-                        <p className="text-sm text-[var(--text-secondary)]">
+                        <p className="text-lg font-bold text-slate-900 mt-0.5">
                           {formatCurrency(payment.amount)}
                         </p>
                         {payment.payment_date && (
-                          <p className="text-xs text-[var(--text-muted)]">
-                            {formatDate(payment.payment_date)}
+                          <p className="text-xs text-[var(--text-muted)] mt-0.5">
+                            Tanggal Transfer: {formatDate(payment.payment_date)}
                           </p>
                         )}
                       </div>
@@ -295,6 +436,134 @@ function StatusContent() {
                 </div>
               </div>
             )}
+          </div>
+        )}
+
+        {/* Modal Lengkapi Paspor */}
+        {passportModalJamaah && (
+          <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-xl shadow-xl max-w-lg w-full overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+              <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
+                <div>
+                  <h3 className="text-base font-bold text-slate-900">
+                    Lengkapi Data Paspor
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    {passportModalJamaah.full_name}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setPassportModalJamaah(null)}
+                  className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <form onSubmit={handleSavePassport} className="p-6 space-y-4">
+                {passportSuccessMsg && (
+                  <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg text-emerald-800 text-sm font-medium flex items-center gap-2">
+                    <Check className="w-4 h-4 text-emerald-600" />
+                    {passportSuccessMsg}
+                  </div>
+                )}
+
+                {passportErrorMsg && (
+                  <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-800 text-sm font-medium flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4 text-red-600" />
+                    {passportErrorMsg}
+                  </div>
+                )}
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-slate-700">
+                    Nomor Paspor <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={passportNumber}
+                    onChange={(e) => setPassportNumber(e.target.value.toUpperCase())}
+                    placeholder="Contoh: A 1234567"
+                    className="w-full h-10 px-3 border border-slate-300 rounded-md text-sm text-slate-900 font-mono font-medium focus:border-emerald-700 focus:outline-none uppercase shadow-xs"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-slate-700">
+                    Tempat Penerbitan (Kantor Imigrasi)
+                  </label>
+                  <input
+                    type="text"
+                    value={passportPlace}
+                    onChange={(e) => setPassportPlace(e.target.value)}
+                    placeholder="Contoh: Jakarta Selatan, Surabaya, Madiun"
+                    className="w-full h-10 px-3 border border-slate-300 rounded-md text-sm text-slate-900 font-medium focus:border-emerald-700 focus:outline-none shadow-xs"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-slate-700">
+                      Tanggal Dikeluarkan
+                    </label>
+                    <input
+                      type="date"
+                      value={passportIssueDate}
+                      onChange={(e) => setPassportIssueDate(e.target.value)}
+                      className="w-full h-10 px-3 border border-slate-300 rounded-md text-sm text-slate-900 font-medium focus:border-emerald-700 focus:outline-none shadow-xs"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-slate-700">
+                      Masa Berlaku Paspor
+                    </label>
+                    <input
+                      type="date"
+                      value={passportExpiryDate}
+                      onChange={(e) => setPassportExpiryDate(e.target.value)}
+                      className="w-full h-10 px-3 border border-slate-300 rounded-md text-sm text-slate-900 font-medium focus:border-emerald-700 focus:outline-none shadow-xs"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1.5 pt-2">
+                  <label className="text-xs font-semibold text-slate-700">
+                    Unggah Scan / Foto Paspor (Opsional)
+                  </label>
+                  <FileUpload
+                    id="passport-upload"
+                    currentFileName={passportScanFile?.name}
+                    onFileSelect={async (file) => {
+                      setPassportScanFile(file)
+                    }}
+                  />
+                  <p className="text-[11px] text-slate-500">
+                    Format: JPG, PNG, atau PDF (maks 10MB). Pastikan halaman identitas terbaca jelas.
+                  </p>
+                </div>
+
+                <div className="flex justify-end gap-2 pt-4 border-t border-slate-200">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() => setPassportModalJamaah(null)}
+                    disabled={savingPassport}
+                  >
+                    Batal
+                  </Button>
+                  <Button
+                    type="submit"
+                    disabled={savingPassport || !passportNumber.trim()}
+                    isLoading={savingPassport}
+                  >
+                    Simpan Data Paspor
+                  </Button>
+                </div>
+              </form>
+            </div>
           </div>
         )}
       </main>

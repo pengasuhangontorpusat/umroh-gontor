@@ -48,36 +48,74 @@ export async function POST(req: NextRequest) {
     const group = (jamaah as Record<string, unknown>).registration_groups as Record<string, unknown>
     const jamaahFolderName = jamaah.full_name.toUpperCase().replace(/\s+/g, '_')
     
-    // Get folder: Jamaah root > Group > Member
-    const jamaahRootFolderId = await getOrCreateFolder('02_Jamaah')
-    const groupFolderId = await getOrCreateFolder(
-      group.registration_code as string,
-      jamaahRootFolderId
-    )
-    const memberFolderId = await getOrCreateFolder(jamaahFolderName, groupFolderId)
-
-    // Doc subfolder
-    const docSubfolderMap: Record<DocumentType, string> = {
-      ktp: '01_KTP',
-      kk: '02_KK',
-      vaksin: '03_VAKSIN',
-      paspor: '04_PASPOR',
-      bukti_bayar: '05_BUKTI_BAYAR',
-    }
-    const docFolderId = await getOrCreateFolder(docSubfolderMap[docType], memberFolderId)
-
     // Prepare file
     const ext = file.name.split('.').pop()
     const uploadName = `${docType.toUpperCase()}_${jamaahFolderName}_${Date.now()}.${ext}`
     const buffer = Buffer.from(await file.arrayBuffer())
 
-    // Upload to Drive
-    const driveFile = await uploadFileToDrive({
-      name: uploadName,
-      mimeType: file.type,
-      buffer,
-      folderId: docFolderId,
-    })
+    let finalDriveFileId: string | null = null
+    let finalFolderId: string | null = null
+    let finalWebViewLink: string | null = null
+    let finalFileSize: number = file.size
+    let finalMimeType: string = file.type
+
+    // 1. Try Google Drive first
+    try {
+      const jamaahRootFolderId = await getOrCreateFolder('02_Jamaah')
+      const groupFolderId = await getOrCreateFolder(
+        group.registration_code as string,
+        jamaahRootFolderId
+      )
+      const memberFolderId = await getOrCreateFolder(jamaahFolderName, groupFolderId)
+
+      const docSubfolderMap: Record<DocumentType, string> = {
+        ktp: '01_KTP',
+        kk: '02_KK',
+        vaksin: '03_VAKSIN',
+        paspor: '04_PASPOR',
+        bukti_bayar: '05_BUKTI_BAYAR',
+      }
+      finalFolderId = await getOrCreateFolder(docSubfolderMap[docType], memberFolderId)
+
+      const driveFile = await uploadFileToDrive({
+        name: uploadName,
+        mimeType: file.type,
+        buffer,
+        folderId: finalFolderId,
+      })
+
+      finalDriveFileId = driveFile.id
+      finalWebViewLink = driveFile.webViewLink
+      finalFileSize = driveFile.size || file.size
+      finalMimeType = driveFile.mimeType || file.type
+    } catch (driveErr) {
+      console.warn(
+        '[upload] Google Drive API error (Service account storage quota / permission), mengalihkan penyimpanan ke Supabase Storage:',
+        driveErr
+      )
+
+      // Fallback: Simpan aman ke Supabase Storage 'documents' bucket
+      const storagePath = `${group.registration_code}/${jamaahFolderName}/${uploadName}`
+      const { error: storageError } = await supabase.storage
+        .from('documents')
+        .upload(storagePath, buffer, {
+          contentType: file.type,
+          upsert: true,
+        })
+
+      if (storageError) {
+        console.error('[upload] Supabase storage fallback error:', storageError)
+        throw new Error('Gagal mengunggah dokumen ke penyimpanan cloud.')
+      }
+
+      const { data: urlData } = supabase.storage
+        .from('documents')
+        .getPublicUrl(storagePath)
+
+      finalDriveFileId = `storage:${storagePath}`
+      finalFolderId = group.registration_code as string
+      finalWebViewLink = urlData.publicUrl
+    }
 
     // Check for existing document (for versioning)
     const { data: existingDoc } = await supabase
@@ -97,12 +135,12 @@ export async function POST(req: NextRequest) {
       .insert({
         jamaah_id: jamaahId,
         document_type: docType,
-        drive_file_id: driveFile.id,
-        drive_folder_id: docFolderId,
+        drive_file_id: finalDriveFileId,
+        drive_folder_id: finalFolderId,
         file_name: uploadName,
-        mime_type: driveFile.mimeType,
-        file_size: driveFile.size,
-        drive_web_view_url: driveFile.webViewLink,
+        mime_type: finalMimeType,
+        file_size: finalFileSize,
+        drive_web_view_url: finalWebViewLink,
         verification_status: 'uploaded',
         uploaded_at: new Date().toISOString(),
         version: newVersion,
@@ -123,8 +161,8 @@ export async function POST(req: NextRequest) {
           await supabase
             .from('payments')
             .update({
-              drive_file_id: driveFile.id,
-              drive_web_view_url: driveFile.webViewLink,
+              drive_file_id: finalDriveFileId,
+              drive_web_view_url: finalWebViewLink,
               verification_status: 'proof_uploaded',
             })
             .eq('id', paymentId)
@@ -141,8 +179,8 @@ export async function POST(req: NextRequest) {
             await supabase
               .from('payments')
               .update({
-                drive_file_id: driveFile.id,
-                drive_web_view_url: driveFile.webViewLink,
+                drive_file_id: finalDriveFileId,
+                drive_web_view_url: finalWebViewLink,
                 verification_status: 'proof_uploaded',
               })
               .eq('id', latestPayment.id)
@@ -156,8 +194,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       document_id: doc.id,
       fileName: uploadName,
-      fileUrl: driveFile.webViewLink,
-      drive_file_id: driveFile.id,
+      fileUrl: finalWebViewLink,
+      drive_file_id: finalDriveFileId,
     })
   } catch (err) {
     console.error('[upload]', err)

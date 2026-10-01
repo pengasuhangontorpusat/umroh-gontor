@@ -122,10 +122,17 @@ function MemberForm({ member, index, isFirst, canRemove, isExpanded, onToggleExp
       saved ? 'border-[var(--primary)]' : 'border-[var(--border)]'
     )}>
       {/* Header */}
-      <button
-        type="button"
+      <div
+        role="button"
+        tabIndex={0}
         onClick={onToggleExpand}
-        className="w-full flex items-center justify-between px-4 py-3 hover:bg-[var(--surface)] transition-colors"
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault()
+            onToggleExpand()
+          }
+        }}
+        className="w-full flex items-center justify-between px-4 py-3 hover:bg-[var(--surface)] transition-colors cursor-pointer select-none"
       >
         <div className="flex items-center gap-3">
           <div className={cn(
@@ -160,13 +167,15 @@ function MemberForm({ member, index, isFirst, canRemove, isExpanded, onToggleExp
               <Trash2 className="w-3.5 h-3.5" />
             </button>
           )}
-          {isExpanded ? (
-            <ChevronUp className="w-4 h-4 text-[var(--text-muted)]" />
-          ) : (
-            <ChevronDown className="w-4 h-4 text-[var(--text-muted)]" />
-          )}
+          <span className="p-1">
+            {isExpanded ? (
+              <ChevronUp className="w-4 h-4 text-[var(--text-muted)]" />
+            ) : (
+              <ChevronDown className="w-4 h-4 text-[var(--text-muted)]" />
+            )}
+          </span>
         </div>
-      </button>
+      </div>
 
       {/* Form */}
       {isExpanded && (
@@ -285,7 +294,7 @@ function MemberForm({ member, index, isFirst, canRemove, isExpanded, onToggleExp
               Alamat
             </label>
             <textarea
-              className="w-full rounded-[var(--radius-md)] border border-[var(--border)] px-3 py-2 text-sm text-[var(--text-primary)] resize-none focus:outline-none focus:border-[var(--primary)] focus:ring-1 focus:ring-[var(--primary)]"
+              className="w-full rounded-[var(--radius-md)] border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 font-medium placeholder:text-slate-400 resize-none focus:outline-none focus:border-emerald-700 focus:ring-1 focus:ring-emerald-700 shadow-xs"
               rows={2}
               placeholder="Alamat lengkap sesuai KTP"
               {...register('address')}
@@ -413,7 +422,7 @@ function MemberForm({ member, index, isFirst, canRemove, isExpanded, onToggleExp
                   <textarea
                     rows={2}
                     placeholder="Contoh: Memerlukan kursi roda selama di bandara & thawaf, pendampingan saat mobilisasi, dsb."
-                    className="w-full px-3 py-2 text-sm border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--primary)] bg-white"
+                    className="w-full px-3 py-2 text-sm text-slate-900 font-medium placeholder:text-slate-400 border border-slate-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-emerald-700 focus:border-emerald-700 bg-white shadow-xs"
                     {...register('disability_description')}
                   />
                   <p className="text-[11px] text-[var(--text-muted)]">

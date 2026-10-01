@@ -18,12 +18,17 @@ export async function getDriveConfig(): Promise<GoogleDriveConfig> {
       .eq('key', 'google_drive')
       .maybeSingle()
 
-    if (data?.value && data.value.client_email && data.value.private_key) {
-      return {
-        client_email: data.value.client_email,
-        private_key: data.value.private_key,
-        root_folder_id: data.value.root_folder_id || process.env.GOOGLE_DRIVE_ROOT_FOLDER_ID || '',
-        shared_drive_id: data.value.shared_drive_id || process.env.GOOGLE_DRIVE_SHARED_DRIVE_ID || null,
+    const val = data?.value as Record<string, string | null | undefined> | undefined
+    if (val) {
+      const clientEmail = val.client_email || val.clientEmail
+      const privateKey = val.private_key || val.privateKey
+      if (clientEmail && privateKey) {
+        return {
+          client_email: clientEmail,
+          private_key: privateKey,
+          root_folder_id: val.root_folder_id || val.rootFolderId || process.env.GOOGLE_DRIVE_ROOT_FOLDER_ID || '',
+          shared_drive_id: val.shared_drive_id || val.sharedDriveId || process.env.GOOGLE_DRIVE_SHARED_DRIVE_ID || null,
+        }
       }
     }
   } catch (err) {
