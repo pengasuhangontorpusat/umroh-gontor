@@ -79,7 +79,7 @@ export const picSchema = z.object({
   email: z.string().email('Format email tidak valid').optional().or(z.literal('')),
   domicile_city: z.string().min(2, 'Kota domisili wajib diisi'),
   departure_point_id: z.string().min(1, 'Pilih titik keberangkatan'),
-  package_id: z.string().optional().default('99999999-9999-9999-9999-999999999999'),
+  package_id: z.string().optional().default('14d65770-ba52-4b34-8582-b4c5b9a2cf36'),
 })
 
 export type PicFormValues = z.infer<typeof picSchema>

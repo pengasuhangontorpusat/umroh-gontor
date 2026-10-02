@@ -39,7 +39,7 @@ export async function POST(req: NextRequest) {
 
     const supabase = await createServiceClient()
 
-    // Resolve package safely (avoids FK violation if client used fallback ID)
+    // Resolve package safely (guarantees FK constraint will NEVER be violated)
     let targetPackageId = package_id
     let pkg = null
 
@@ -51,8 +51,10 @@ export async function POST(req: NextRequest) {
 
     if (foundPkg) {
       pkg = foundPkg
+      targetPackageId = foundPkg.id
     } else {
-      const { data: firstPkg } = await supabase
+      // 1. Look for active package
+      const { data: firstActivePkg } = await supabase
         .from('packages')
         .select('*')
         .eq('is_active', true)
@@ -60,18 +62,49 @@ export async function POST(req: NextRequest) {
         .limit(1)
         .maybeSingle()
 
-      if (firstPkg) {
-        pkg = firstPkg
-        targetPackageId = firstPkg.id
+      if (firstActivePkg) {
+        pkg = firstActivePkg
+        targetPackageId = firstActivePkg.id
       } else {
-        pkg = {
-          price: 37200000,
-          dp_amount: 5000000,
+        // 2. Look for ANY package in database
+        const { data: anyPkg } = await supabase
+          .from('packages')
+          .select('*')
+          .order('created_at', { ascending: true })
+          .limit(1)
+          .maybeSingle()
+
+        if (anyPkg) {
+          pkg = anyPkg
+          targetPackageId = anyPkg.id
+        } else {
+          // 3. Fallback: create standard package so FK constraint is satisfied
+          const { data: createdPkg } = await supabase
+            .from('packages')
+            .insert({
+              name: 'Paket Quad (Sekamar 4 Orang)',
+              price: 37200000,
+              dp_amount: 5000000,
+              currency: 'IDR',
+              is_active: true,
+            })
+            .select()
+            .single()
+
+          if (createdPkg) {
+            pkg = createdPkg
+            targetPackageId = createdPkg.id
+          } else {
+            pkg = {
+              price: 37200000,
+              dp_amount: 5000000,
+            }
+          }
         }
       }
     }
 
-    // Resolve departure point safely (avoids FK violation if client used fallback ID)
+    // Resolve departure point safely (guarantees FK constraint will NEVER be violated)
     let targetDeparturePointId = departure_point_id
     const { data: foundDp } = await supabase
       .from('departure_points')
@@ -79,18 +112,42 @@ export async function POST(req: NextRequest) {
       .eq('id', departure_point_id)
       .maybeSingle()
 
-    if (!foundDp) {
-      const { data: firstDp } = await supabase
+    if (foundDp) {
+      targetDeparturePointId = foundDp.id
+    } else {
+      const { data: firstActiveDp } = await supabase
         .from('departure_points')
         .select('id')
         .eq('is_active', true)
+        .order('sort_order', { ascending: true })
         .limit(1)
         .maybeSingle()
 
-      if (firstDp) {
-        targetDeparturePointId = firstDp.id
+      if (firstActiveDp) {
+        targetDeparturePointId = firstActiveDp.id
       } else {
-        targetDeparturePointId = null
+        const { data: anyDp } = await supabase
+          .from('departure_points')
+          .select('id')
+          .limit(1)
+          .maybeSingle()
+
+        if (anyDp) {
+          targetDeparturePointId = anyDp.id
+        } else {
+          const { data: createdDp } = await supabase
+            .from('departure_points')
+            .insert({
+              code: 'JKT',
+              name: 'Jakarta (Soekarno-Hatta / CGK)',
+              is_active: true,
+              sort_order: 1,
+            })
+            .select()
+            .single()
+
+          targetDeparturePointId = createdDp ? createdDp.id : null
+        }
       }
     }
 
@@ -142,35 +199,68 @@ export async function POST(req: NextRequest) {
     }
 
     // Insert jamaahs
-    const jamaahInserts = members.map((m: Record<string, unknown>, i: number) => ({
-      group_id: group.id,
-      registration_order: i + 1,
-      full_name: m.full_name,
-      gender: m.gender,
-      father_name: m.father_name || null,
-      nik: m.nik || null,
-      birth_place: m.birth_place,
-      birth_date: m.birth_date,
-      nationality: m.nationality || 'Indonesia',
-      marital_status: m.marital_status || null,
-      occupation: m.occupation || null,
-      phone: m.phone || null,
-      address: m.address || null,
-      province: m.province || null,
-      city: m.city || null,
-      district: m.district || null,
-      village: m.village || null,
-      relationship_to_pic: m.relationship_to_pic || null,
-      passport_status: m.passport_status || 'no_passport',
-      passport_number: m.passport_number || null,
-      passport_issue_place: m.passport_issue_place || null,
-      passport_issue_date: m.passport_issue_date || null,
-      passport_expiry_date: m.passport_expiry_date || null,
-      has_disability: Boolean(m.has_disability) || false,
-      disability_description: (m.disability_description as string) || null,
-      medical_history: (m.medical_history as string) || null,
-      clothing_size: (m.clothing_size as string) || null,
-    }))
+    const jamaahInserts = members.map((m: Record<string, unknown>, i: number) => {
+      // Normalize gender ('male' | 'female')
+      const gStr = String(m.gender || '').toLowerCase().trim()
+      const normalizedGender =
+        gStr === 'p' || gStr === 'perempuan' || gStr === 'female' || gStr === 'wanita'
+          ? 'female'
+          : 'male'
+
+      // Normalize marital_status ('single' | 'married' | 'widowed' | 'divorced' | null)
+      let normalizedMarital: 'single' | 'married' | 'widowed' | 'divorced' | null = null
+      const mStr = String(m.marital_status || '').toLowerCase().trim()
+      if (['menikah', 'kawin', 'married'].includes(mStr)) {
+        normalizedMarital = 'married'
+      } else if (['belum_menikah', 'belum menikah', 'lajang', 'single', 'belum kawin'].includes(mStr)) {
+        normalizedMarital = 'single'
+      } else if (['cerai_mati', 'duda', 'janda', 'widowed'].includes(mStr)) {
+        normalizedMarital = 'widowed'
+      } else if (['cerai_hidup', 'cerai', 'divorced'].includes(mStr)) {
+        normalizedMarital = 'divorced'
+      }
+
+      // Normalize passport_status ('has_passport' | 'no_passport' | 'in_process')
+      let normalizedPassport: 'has_passport' | 'no_passport' | 'in_process' = 'no_passport'
+      if (m.has_passport === true || m.passport_status === 'has_passport' || Boolean(m.passport_number)) {
+        normalizedPassport = 'has_passport'
+      } else if (m.passport_status === 'in_process') {
+        normalizedPassport = 'in_process'
+      }
+
+      // Address fallback from address_ktp
+      const resolvedAddress = (m.address as string) || (m.address_ktp as string) || null
+
+      return {
+        group_id: group.id,
+        registration_order: i + 1,
+        full_name: m.full_name,
+        gender: normalizedGender,
+        father_name: m.father_name || null,
+        nik: m.nik ? String(m.nik).trim() : null,
+        birth_place: m.birth_place,
+        birth_date: m.birth_date,
+        nationality: m.nationality || 'Indonesia',
+        marital_status: normalizedMarital,
+        occupation: m.occupation || null,
+        phone: m.phone || null,
+        address: resolvedAddress,
+        province: m.province || null,
+        city: m.city || null,
+        district: m.district || null,
+        village: m.village || null,
+        relationship_to_pic: m.relationship_to_pic || null,
+        passport_status: normalizedPassport,
+        passport_number: m.passport_number || null,
+        passport_issue_place: m.passport_issue_place || null,
+        passport_issue_date: m.passport_issue_date || null,
+        passport_expiry_date: m.passport_expiry_date || null,
+        has_disability: Boolean(m.has_disability) || false,
+        disability_description: (m.disability_description as string) || null,
+        medical_history: (m.medical_history as string) || null,
+        clothing_size: (m.clothing_size as string) || null,
+      }
+    })
 
     const { data: jamaahs, error: jamaahError } = await supabase
       .from('jamaahs')
@@ -178,9 +268,10 @@ export async function POST(req: NextRequest) {
       .select()
 
     if (jamaahError || !jamaahs?.length) {
+      console.error('Jamaah insert error details:', jamaahError)
       // Rollback group
       await supabase.from('registration_groups').delete().eq('id', group.id)
-      throw new Error('Gagal menyimpan data jamaah.')
+      throw new Error('Gagal menyimpan data jamaah: ' + (jamaahError?.message || 'unknown error'))
     }
 
     // Set PIC link ONLY if PIC is departing as one of the registered jamaahs

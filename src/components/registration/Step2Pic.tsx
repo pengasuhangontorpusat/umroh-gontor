@@ -12,18 +12,40 @@ import { picSchema, PicFormValues } from '@/lib/validations'
 import { createClient } from '@/lib/supabase/client'
 
 const FALLBACK_DEPARTURE_POINTS: DeparturePoint[] = [
-  { id: '11111111-1111-1111-1111-111111111111', code: 'JKT', name: 'Jakarta (Soekarno-Hatta / CGK)', description: null, is_active: true, sort_order: 1, created_at: '' },
-  { id: '22222222-2222-2222-2222-222222222222', code: 'SUB', name: 'Surabaya (Juanda / SUB)', description: null, is_active: true, sort_order: 2, created_at: '' },
-  { id: '33333333-3333-3333-3333-333333333333', code: 'SOC', name: 'Solo / Gontor (Adi Soemarmo / SOC)', description: null, is_active: true, sort_order: 3, created_at: '' },
-  { id: '44444444-4444-4444-4444-444444444444', code: 'KNO', name: 'Medan (Kualanamu / KNO)', description: null, is_active: true, sort_order: 4, created_at: '' },
-  { id: '55555555-5555-5555-5555-555555555555', code: 'UPG', name: 'Makassar (Sultan Hasanuddin / UPG)', description: null, is_active: true, sort_order: 5, created_at: '' },
+  { id: 'b8c7a155-0a16-4c28-bf5e-c44682a0e1c3', code: 'JKT', name: 'Jakarta (Soekarno-Hatta / CGK)', description: null, is_active: true, sort_order: 1, created_at: '' },
+  { id: 'e966b30b-738b-42ef-a9b1-c65044553166', code: 'SBY', name: 'Surabaya (Juanda / SUB)', description: null, is_active: true, sort_order: 2, created_at: '' },
+  { id: '56229ce8-ac9b-45cd-857f-6551721149e6', code: 'GNT', name: 'Solo / Gontor (Adi Soemarmo / SOC)', description: null, is_active: true, sort_order: 3, created_at: '' },
 ]
 
 const FALLBACK_PACKAGES: Package[] = [
   {
-    id: '99999999-9999-9999-9999-999999999999',
-    name: 'Paket Umrah 100 Tahun Gontor (Rp 37.200.000)',
+    id: '14d65770-ba52-4b34-8582-b4c5b9a2cf36',
+    name: 'Paket Quad (Sekamar 4 Orang) (Rp 37.200.000)',
     price: 37200000,
+    dp_amount: 5000000,
+    currency: 'IDR',
+    departure_date: '2026-10-01',
+    return_date: '2026-10-12',
+    is_active: true,
+    created_at: '',
+    updated_at: '',
+  },
+  {
+    id: '7d73b4d9-51b8-44f2-976c-6da6cf7e61c1',
+    name: 'Paket Triple (Sekamar 3 Orang) (Rp 39.500.000)',
+    price: 39500000,
+    dp_amount: 5000000,
+    currency: 'IDR',
+    departure_date: '2026-10-01',
+    return_date: '2026-10-12',
+    is_active: true,
+    created_at: '',
+    updated_at: '',
+  },
+  {
+    id: '8bf8ad98-8316-474b-848d-18284dabde9d',
+    name: 'Paket Double (Sekamar 2 Orang) (Rp 42.000.000)',
+    price: 42000000,
     dp_amount: 5000000,
     currency: 'IDR',
     departure_date: '2026-10-01',
@@ -43,18 +65,33 @@ export function Step2Pic() {
   useEffect(() => {
     const supabase = createClient()
     Promise.all([
-      supabase.from('departure_points').select('*').eq('is_active', true).order('sort_order'),
-      supabase.from('packages').select('*').eq('is_active', true),
+      supabase.from('departure_points').select('*').order('sort_order'),
+      supabase.from('packages').select('*').order('price', { ascending: true }),
     ])
       .then(([dp, pkg]) => {
-        const finalDp = dp.data && dp.data.length > 0 ? dp.data : FALLBACK_DEPARTURE_POINTS
-        const finalPkg = pkg.data && pkg.data.length > 0 ? pkg.data : FALLBACK_PACKAGES
+        const activeDp = (dp.data || []).filter((d: DeparturePoint) => d.is_active !== false)
+        const finalDp = activeDp.length > 0 ? activeDp : (dp.data && dp.data.length > 0 ? dp.data : FALLBACK_DEPARTURE_POINTS)
+
+        const activePkg = (pkg.data || []).filter((p: Package) => p.is_active !== false)
+        const finalPkg = activePkg.length > 0 ? activePkg : (pkg.data && pkg.data.length > 0 ? pkg.data : FALLBACK_PACKAGES)
+
         setDeparturePoints(finalDp)
         setPackages(finalPkg)
-        // Auto-select first package if only one or unset
-        if (finalPkg.length > 0 && !draft.package_id) {
+
+        // Check if draft has valid package_id; if not, reset to first valid package
+        const isPkgValid = finalPkg.some((p: Package) => p.id === draft.package_id)
+        if (!isPkgValid && finalPkg.length > 0) {
           setDraft({ package_id: finalPkg[0].id })
+          setValue('package_id', finalPkg[0].id)
         }
+
+        // Check if draft has valid departure_point_id; if not, reset to first valid departure point
+        const isDpValid = finalDp.some((d: DeparturePoint) => d.id === draft.departure_point_id)
+        if (!isDpValid && finalDp.length > 0) {
+          setDraft({ departure_point_id: finalDp[0].id })
+          setValue('departure_point_id', finalDp[0].id)
+        }
+
         setLoading(false)
       })
       .catch(() => {
@@ -80,16 +117,17 @@ export function Step2Pic() {
       phone: draft.pic_phone,
       email: draft.pic_email,
       domicile_city: draft.pic_domicile_city,
-      departure_point_id: draft.departure_point_id || '',
+      departure_point_id: draft.departure_point_id || FALLBACK_DEPARTURE_POINTS[0].id,
       package_id: draft.package_id || FALLBACK_PACKAGES[0].id,
     },
   })
 
   useEffect(() => {
     if (packages.length > 0) {
-      const selectedPkgId = draft.package_id || packages[0].id
+      const isPkgValid = packages.some((p) => p.id === draft.package_id)
+      const selectedPkgId = isPkgValid ? draft.package_id : packages[0].id
       setValue('package_id', selectedPkgId)
-      if (!draft.package_id) {
+      if (draft.package_id !== selectedPkgId) {
         setDraft({ package_id: selectedPkgId })
       }
     }
