@@ -10,37 +10,46 @@ export async function GET() {
       .eq('key', 'google_drive')
       .maybeSingle()
 
-    if (error) {
-      // Table might not exist yet if migration hasn't been run
-      return NextResponse.json({
-        config: {
-          client_email: process.env.GOOGLE_DRIVE_CLIENT_EMAIL || '',
-          private_key: process.env.GOOGLE_DRIVE_PRIVATE_KEY || '',
-          root_folder_id: process.env.GOOGLE_DRIVE_ROOT_FOLDER_ID || '',
-          shared_drive_id: process.env.GOOGLE_DRIVE_SHARED_DRIVE_ID || '',
-          source: 'env',
-        },
-      })
+    const envConfig = {
+      client_id: process.env.GOOGLE_CLIENT_ID || '',
+      client_secret: process.env.GOOGLE_CLIENT_SECRET || '',
+      refresh_token: process.env.GOOGLE_REFRESH_TOKEN || '',
+      client_email: process.env.GOOGLE_DRIVE_CLIENT_EMAIL || '',
+      private_key: process.env.GOOGLE_DRIVE_PRIVATE_KEY || '',
+      root_folder_id: process.env.GOOGLE_DRIVE_ROOT_FOLDER_ID || '1SYppeQgDeGY-nUHyOf4meuRdlECx5wKQ',
+      shared_drive_id: process.env.GOOGLE_DRIVE_SHARED_DRIVE_ID || '',
+      auth_type:
+        process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET && process.env.GOOGLE_REFRESH_TOKEN
+          ? 'oauth2'
+          : process.env.GOOGLE_DRIVE_CLIENT_EMAIL && process.env.GOOGLE_DRIVE_PRIVATE_KEY
+          ? 'service_account'
+          : 'none',
+      source: 'env',
     }
 
-    if (data?.value) {
-      return NextResponse.json({
-        config: {
-          ...data.value,
-          source: 'database',
-          updated_at: data.updated_at,
-        },
-      })
+    if (error || !data?.value) {
+      return NextResponse.json({ config: envConfig })
     }
 
-    // Fallback to env
+    const val = data.value as Record<string, string | null | undefined>
+    const hasOAuth = Boolean(
+      (val.client_id || process.env.GOOGLE_CLIENT_ID) &&
+      (val.client_secret || process.env.GOOGLE_CLIENT_SECRET) &&
+      (val.refresh_token || process.env.GOOGLE_REFRESH_TOKEN)
+    )
+
     return NextResponse.json({
       config: {
-        client_email: process.env.GOOGLE_DRIVE_CLIENT_EMAIL || '',
-        private_key: process.env.GOOGLE_DRIVE_PRIVATE_KEY || '',
-        root_folder_id: process.env.GOOGLE_DRIVE_ROOT_FOLDER_ID || '',
-        shared_drive_id: process.env.GOOGLE_DRIVE_SHARED_DRIVE_ID || '',
-        source: 'env',
+        client_id: val.client_id || process.env.GOOGLE_CLIENT_ID || '',
+        client_secret: val.client_secret || process.env.GOOGLE_CLIENT_SECRET || '',
+        refresh_token: val.refresh_token || process.env.GOOGLE_REFRESH_TOKEN || '',
+        client_email: val.client_email || process.env.GOOGLE_DRIVE_CLIENT_EMAIL || '',
+        private_key: val.private_key || process.env.GOOGLE_DRIVE_PRIVATE_KEY || '',
+        root_folder_id: val.root_folder_id || process.env.GOOGLE_DRIVE_ROOT_FOLDER_ID || '1SYppeQgDeGY-nUHyOf4meuRdlECx5wKQ',
+        shared_drive_id: val.shared_drive_id || process.env.GOOGLE_DRIVE_SHARED_DRIVE_ID || '',
+        auth_type: hasOAuth ? 'oauth2' : val.client_email ? 'service_account' : 'none',
+        source: 'database',
+        updated_at: data.updated_at,
       },
     })
   } catch (err) {
@@ -55,17 +64,38 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
-    const { client_email, private_key, root_folder_id, shared_drive_id } = body
+    const {
+      client_id,
+      client_secret,
+      refresh_token,
+      client_email,
+      private_key,
+      root_folder_id,
+      shared_drive_id,
+    } = body
 
-    if (!client_email || !private_key || !root_folder_id) {
+    if (!root_folder_id) {
       return NextResponse.json(
-        { error: 'Client Email, Private Key, dan Root Folder ID wajib diisi.' },
+        { error: 'Root Folder ID wajib diisi.' },
         { status: 400 }
       )
     }
 
-    // Clean private key formatting
-    const cleanedPrivateKey = private_key.replace(/\\n/g, '\n').trim()
+    const hasOAuth = Boolean(client_id && client_secret && refresh_token)
+    const hasServiceAccount = Boolean(client_email && private_key)
+
+    if (!hasOAuth && !hasServiceAccount) {
+      return NextResponse.json(
+        {
+          error:
+            'Harap lengkapi Kredensial OAuth2 (Client ID, Secret, Refresh Token) ATAU Service Account (Client Email & Private Key).',
+        },
+        { status: 400 }
+      )
+    }
+
+    // Clean private key formatting if provided
+    const cleanedPrivateKey = private_key ? private_key.replace(/\\n/g, '\n').trim() : ''
 
     const supabase = await createServiceClient()
 
@@ -76,8 +106,11 @@ export async function POST(req: NextRequest) {
         {
           key: 'google_drive',
           value: {
-            client_email: client_email.trim(),
-            private_key: cleanedPrivateKey,
+            client_id: client_id ? client_id.trim() : null,
+            client_secret: client_secret ? client_secret.trim() : null,
+            refresh_token: refresh_token ? refresh_token.trim() : null,
+            client_email: client_email ? client_email.trim() : null,
+            private_key: cleanedPrivateKey || null,
             root_folder_id: root_folder_id.trim(),
             shared_drive_id: shared_drive_id ? shared_drive_id.trim() : null,
           },
@@ -93,8 +126,7 @@ export async function POST(req: NextRequest) {
       console.error('Save drive settings error:', error)
       return NextResponse.json(
         {
-          error:
-            'Gagal menyimpan konfigurasi. Pastikan migration 004_create_app_settings.sql sudah dijalankan di Supabase SQL Editor.',
+          error: 'Gagal menyimpan konfigurasi ke tabel app_settings di database.',
         },
         { status: 500 }
       )
@@ -106,7 +138,13 @@ export async function POST(req: NextRequest) {
       action: 'settings.google_drive_updated',
       entity_type: 'app_settings',
       entity_id: '00000000-0000-0000-0000-000000000000',
-      new_data: { client_email, root_folder_id, shared_drive_id },
+      new_data: {
+        auth_type: hasOAuth ? 'oauth2' : 'service_account',
+        client_id: client_id ? client_id.substring(0, 15) + '...' : null,
+        client_email: client_email || null,
+        root_folder_id,
+        shared_drive_id,
+      },
     })
 
     return NextResponse.json({

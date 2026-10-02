@@ -1,15 +1,27 @@
 import { google } from 'googleapis'
+import { Readable } from 'stream'
 import { createServiceClient } from '@/lib/supabase/server'
 
 export interface GoogleDriveConfig {
-  client_email: string
-  private_key: string
+  // OAuth2 (Recommended - bypasses Service Account personal drive quota limits)
+  client_id?: string
+  client_secret?: string
+  refresh_token?: string
+
+  // Service Account (Fallback)
+  client_email?: string
+  private_key?: string
+
+  // Folder configuration
   root_folder_id: string
   shared_drive_id?: string | null
+  auth_type?: 'oauth2' | 'service_account'
 }
 
 // Fetch configuration from Database first, fallback to process.env
 export async function getDriveConfig(): Promise<GoogleDriveConfig> {
+  let dbVal: Record<string, string | null | undefined> | undefined
+
   try {
     const supabase = await createServiceClient()
     const { data } = await supabase
@@ -18,48 +30,89 @@ export async function getDriveConfig(): Promise<GoogleDriveConfig> {
       .eq('key', 'google_drive')
       .maybeSingle()
 
-    const val = data?.value as Record<string, string | null | undefined> | undefined
-    if (val) {
-      const clientEmail = val.client_email || val.clientEmail
-      const privateKey = val.private_key || val.privateKey
-      if (clientEmail && privateKey) {
-        return {
-          client_email: clientEmail,
-          private_key: privateKey,
-          root_folder_id: val.root_folder_id || val.rootFolderId || process.env.GOOGLE_DRIVE_ROOT_FOLDER_ID || '',
-          shared_drive_id: val.shared_drive_id || val.sharedDriveId || process.env.GOOGLE_DRIVE_SHARED_DRIVE_ID || null,
-        }
-      }
-    }
+    dbVal = data?.value as Record<string, string | null | undefined> | undefined
   } catch (err) {
     console.warn('[google-drive] Gagal mengambil konfigurasi dari database, menggunakan fallback .env:', err)
   }
 
+  // 1. Check OAuth2 first (from DB or env)
+  const clientId = dbVal?.client_id || dbVal?.clientId || process.env.GOOGLE_CLIENT_ID || ''
+  const clientSecret = dbVal?.client_secret || dbVal?.clientSecret || process.env.GOOGLE_CLIENT_SECRET || ''
+  const refreshToken = dbVal?.refresh_token || dbVal?.refreshToken || process.env.GOOGLE_REFRESH_TOKEN || ''
+
+  // 2. Check Service Account (from DB or env)
+  const clientEmail = dbVal?.client_email || dbVal?.clientEmail || process.env.GOOGLE_DRIVE_CLIENT_EMAIL || ''
+  const privateKey = dbVal?.private_key || dbVal?.privateKey || process.env.GOOGLE_DRIVE_PRIVATE_KEY || ''
+
+  // 3. Root folder & shared drive ID
+  const rootFolderId =
+    dbVal?.root_folder_id ||
+    dbVal?.rootFolderId ||
+    process.env.GOOGLE_DRIVE_ROOT_FOLDER_ID ||
+    '1SYppeQgDeGY-nUHyOf4meuRdlECx5wKQ'
+
+  const sharedDriveId =
+    dbVal?.shared_drive_id ||
+    dbVal?.sharedDriveId ||
+    process.env.GOOGLE_DRIVE_SHARED_DRIVE_ID ||
+    null
+
+  const hasOAuth2 = Boolean(clientId && clientSecret && refreshToken)
+  const hasServiceAccount = Boolean(clientEmail && privateKey)
+
   return {
-    client_email: process.env.GOOGLE_DRIVE_CLIENT_EMAIL || '',
-    private_key: process.env.GOOGLE_DRIVE_PRIVATE_KEY || '',
-    root_folder_id: process.env.GOOGLE_DRIVE_ROOT_FOLDER_ID || '',
-    shared_drive_id: process.env.GOOGLE_DRIVE_SHARED_DRIVE_ID || null,
+    client_id: clientId,
+    client_secret: clientSecret,
+    refresh_token: refreshToken,
+    client_email: clientEmail,
+    private_key: privateKey,
+    root_folder_id: rootFolderId,
+    shared_drive_id: sharedDriveId,
+    auth_type: hasOAuth2 ? 'oauth2' : hasServiceAccount ? 'service_account' : undefined,
   }
+}
+
+// Get Google Auth Client
+function createAuth(config: GoogleDriveConfig) {
+  // If OAuth2 credentials are provided, use them (bypasses Service Account quota limits)
+  if (config.client_id && config.client_secret && config.refresh_token) {
+    const oauth2Client = new google.auth.OAuth2(
+      config.client_id,
+      config.client_secret,
+      'https://developers.google.com/oauthplayground'
+    )
+    oauth2Client.setCredentials({
+      refresh_token: config.refresh_token,
+    })
+    return oauth2Client
+  }
+
+  // Fallback to Service Account
+  if (config.client_email && config.private_key) {
+    let key = config.private_key.trim()
+    if (key.startsWith('"') && key.endsWith('"')) {
+      key = key.substring(1, key.length - 1)
+    }
+    key = key.replace(/\\n/g, '\n')
+
+    return new google.auth.GoogleAuth({
+      credentials: {
+        client_email: config.client_email.trim(),
+        private_key: key,
+      },
+      scopes: ['https://www.googleapis.com/auth/drive'],
+    })
+  }
+
+  throw new Error(
+    'Google Drive API belum dikonfigurasi. Lengkapi OAuth2 atau Service Account di Admin > Pengaturan.'
+  )
 }
 
 // Initialize Google Drive client with dynamic config
 export async function getDriveClient(customConfig?: GoogleDriveConfig) {
   const config = customConfig || (await getDriveConfig())
-
-  if (!config.client_email || !config.private_key) {
-    throw new Error(
-      'Google Drive API belum dikonfigurasi. Silakan lengkapi pengaturan Google Drive di halaman Admin > Pengaturan.'
-    )
-  }
-
-  const auth = new google.auth.GoogleAuth({
-    credentials: {
-      client_email: config.client_email,
-      private_key: config.private_key.replace(/\\n/g, '\n'),
-    },
-    scopes: ['https://www.googleapis.com/auth/drive'],
-  })
+  const auth = createAuth(config)
 
   return {
     drive: google.drive({ version: 'v3', auth }),
@@ -93,35 +146,19 @@ export interface DriveFileMetadata {
 // ============================================================
 
 export async function createFolder(options: CreateFolderOptions): Promise<string> {
-  const { drive, config } = await getDriveClient()
+  const { drive } = await getDriveClient()
   const { name, parentId } = options
 
-  const folderMetadata: {
-    name: string
-    mimeType: string
-    parents: string[]
-    driveId?: string
-  } = {
-    name,
-    mimeType: 'application/vnd.google-apps.folder',
-    parents: [parentId],
-  }
-
-  const params: {
-    requestBody: typeof folderMetadata
-    fields: string
-    supportsAllDrives?: boolean
-    driveId?: string
-  } = {
-    requestBody: folderMetadata,
+  const folder = await drive.files.create({
+    requestBody: {
+      name,
+      mimeType: 'application/vnd.google-apps.folder',
+      parents: [parentId],
+    },
     fields: 'id',
-  }
+    supportsAllDrives: true,
+  })
 
-  if (config.shared_drive_id) {
-    params.supportsAllDrives = true
-  }
-
-  const folder = await drive.files.create(params)
   return folder.data.id!
 }
 
@@ -134,24 +171,14 @@ export async function getOrCreateFolder(name: string, parentId?: string): Promis
   }
 
   // Search for existing folder
-  const query = `name='${name}' and '${targetParentId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`
+  const query = `name='${name.replace(/'/g, "\\'")}' and '${targetParentId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`
 
-  const params: {
-    q: string
-    fields: string
-    supportsAllDrives?: boolean
-    includeItemsFromAllDrives?: boolean
-  } = {
+  const response = await drive.files.list({
     q: query,
     fields: 'files(id, name)',
-  }
-
-  if (config.shared_drive_id) {
-    params.supportsAllDrives = true
-    params.includeItemsFromAllDrives = true
-  }
-
-  const response = await drive.files.list(params)
+    supportsAllDrives: true,
+    includeItemsFromAllDrives: true,
+  })
 
   if (response.data.files && response.data.files.length > 0) {
     return response.data.files[0].id!
@@ -177,14 +204,13 @@ export async function createGroupFolderStructure(
   const jamaahRootFolderId = await getOrCreateFolder('02_Jamaah', rootId)
 
   // Create group folder
-  const groupFolderName = registrationCode
-  const groupFolderId = await getOrCreateFolder(groupFolderName, jamaahRootFolderId)
+  const groupFolderId = await getOrCreateFolder(registrationCode, jamaahRootFolderId)
 
   const memberFolderIds: Record<string, string> = {}
 
   if (type === 'individual' && memberNames.length > 0) {
     // Individual: create document subfolders directly
-    for (const subFolder of ['01_KTP', '02_KK', '03_VAKSIN', '04_PASPOR']) {
+    for (const subFolder of ['01_KTP', '02_KK', '03_VAKSIN', '04_PASPOR', '05_BUKTI_BAYAR']) {
       await getOrCreateFolder(subFolder, groupFolderId)
     }
     memberFolderIds[memberNames[0]] = groupFolderId
@@ -196,7 +222,7 @@ export async function createGroupFolderStructure(
       memberFolderIds[memberNames[i]] = memberFolderId
 
       // Create document subfolders
-      for (const subFolder of ['01_KTP', '02_KK', '03_VAKSIN', '04_PASPOR']) {
+      for (const subFolder of ['01_KTP', '02_KK', '03_VAKSIN', '04_PASPOR', '05_BUKTI_BAYAR']) {
         await getOrCreateFolder(subFolder, memberFolderId)
       }
     }
@@ -206,86 +232,123 @@ export async function createGroupFolderStructure(
 }
 
 // ============================================================
-// Upload file
+// Upload file to Google Drive
 // ============================================================
 
 export async function uploadFileToDrive(options: UploadFileOptions): Promise<DriveFileMetadata> {
-  const { drive, config } = await getDriveClient()
+  const { drive } = await getDriveClient()
   const { name, mimeType, buffer, folderId } = options
 
-  const { Readable } = await import('stream')
-  const stream = Readable.from(buffer)
+  const readable = new Readable()
+  readable.push(buffer)
+  readable.push(null)
 
-  const params: {
-    requestBody: { name: string; parents: string[] }
-    media: { mimeType: string; body: typeof stream }
-    fields: string
-    supportsAllDrives?: boolean
-  } = {
+  const file = await drive.files.create({
     requestBody: {
       name,
-      parents: [folderId],
+      parents: folderId ? [folderId] : undefined,
     },
     media: {
       mimeType,
-      body: stream,
+      body: readable,
     },
     fields: 'id, name, mimeType, size, webViewLink, parents',
+    supportsAllDrives: true,
+  })
+
+  if (!file.data.id) {
+    throw new Error('Google Drive upload failed: no file ID returned')
   }
 
-  if (config.shared_drive_id) {
-    params.supportsAllDrives = true
+  // Attempt to set public read permission so links work everywhere
+  try {
+    await drive.permissions.create({
+      fileId: file.data.id,
+      supportsAllDrives: true,
+      requestBody: {
+        role: 'reader',
+        type: 'anyone',
+      },
+    })
+  } catch (permErr) {
+    console.warn('[uploadFileToDrive] Permission setting note:', permErr)
   }
-
-  const file = await drive.files.create(params)
 
   return {
-    id: file.data.id!,
-    name: file.data.name!,
-    mimeType: file.data.mimeType!,
-    size: Number(file.data.size) || 0,
-    webViewLink: file.data.webViewLink!,
-    parents: file.data.parents || [],
+    id: file.data.id,
+    name: file.data.name || name,
+    mimeType: file.data.mimeType || mimeType,
+    size: Number(file.data.size) || buffer.length,
+    webViewLink: file.data.webViewLink || `https://drive.google.com/file/d/${file.data.id}/view`,
+    parents: file.data.parents || (folderId ? [folderId] : []),
   }
 }
 
 // ============================================================
-// Delete file (soft — move to archive)
+// Stream a file from Google Drive (for direct preview without 403)
+// ============================================================
+
+export async function streamFromDrive(fileId: string): Promise<{
+  stream: NodeJS.ReadableStream
+  mimeType: string
+  filename: string
+}> {
+  const { drive } = await getDriveClient()
+
+  // Get file metadata
+  const meta = await drive.files.get({
+    fileId,
+    supportsAllDrives: true,
+    fields: 'mimeType, name',
+  })
+
+  const mimeType = meta.data.mimeType || 'application/octet-stream'
+  const filename = meta.data.name || 'file'
+
+  // Download file stream
+  const response = await drive.files.get(
+    { fileId, alt: 'media', supportsAllDrives: true },
+    { responseType: 'stream' }
+  )
+
+  return {
+    stream: response.data as unknown as NodeJS.ReadableStream,
+    mimeType,
+    filename,
+  }
+}
+
+// ============================================================
+// Delete a file from Google Drive
+// ============================================================
+
+export async function deleteFromDrive(fileId: string): Promise<void> {
+  const { drive } = await getDriveClient()
+  await drive.files.delete({ fileId, supportsAllDrives: true })
+}
+
+// ============================================================
+// Archive file (move to 99_Arsip)
 // ============================================================
 
 export async function archiveFile(fileId: string): Promise<void> {
   const { drive, config } = await getDriveClient()
   const archiveFolderId = await getOrCreateFolder('99_Arsip', config.root_folder_id)
 
-  const params: {
-    fileId: string
-    addParents: string
-    removeParents?: string
-    fields: string
-    supportsAllDrives?: boolean
-  } = {
-    fileId,
-    addParents: archiveFolderId,
-    fields: 'id, parents',
-  }
-
-  if (config.shared_drive_id) {
-    params.supportsAllDrives = true
-  }
-
   // Get current parents
-  const fileParamsGet: { fileId: string; fields: string; supportsAllDrives?: boolean } = {
+  const file = await drive.files.get({
     fileId,
     fields: 'parents',
-  }
-  if (config.shared_drive_id) fileParamsGet.supportsAllDrives = true
+    supportsAllDrives: true,
+  })
 
-  const file = await drive.files.get(fileParamsGet)
-  if (file.data.parents) {
-    params.removeParents = file.data.parents.join(',')
-  }
-
-  await drive.files.update(params)
+  await drive.files.update({
+    fileId,
+    addParents: archiveFolderId,
+    removeParents: file.data.parents?.join(','),
+    fields: 'id, parents',
+    supportsAllDrives: true,
+  })
 }
 
 // ============================================================

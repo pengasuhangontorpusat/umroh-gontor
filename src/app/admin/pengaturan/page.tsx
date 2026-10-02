@@ -119,6 +119,10 @@ export default function MasterSettingsPage() {
 
   // Google Drive state
   const [driveConfig, setDriveConfig] = useState({
+    auth_type: 'oauth2' as 'oauth2' | 'service_account',
+    client_id: '',
+    client_secret: '',
+    refresh_token: '',
     client_email: '',
     private_key: '',
     root_folder_id: '',
@@ -126,6 +130,7 @@ export default function MasterSettingsPage() {
     source: 'env',
     updated_at: '',
   })
+  const [driveMethod, setDriveMethod] = useState<'oauth2' | 'service_account'>('oauth2')
   const [isTestingDrive, setIsTestingDrive] = useState(false)
   const [testResult, setTestResult] = useState<{
     success: boolean
@@ -181,14 +186,24 @@ export default function MasterSettingsPage() {
       .then((res) => res.json())
       .then((data) => {
         if (data.config) {
+          const cfg = data.config
           setDriveConfig({
-            client_email: data.config.client_email || '',
-            private_key: data.config.private_key || '',
-            root_folder_id: data.config.root_folder_id || '',
-            shared_drive_id: data.config.shared_drive_id || '',
-            source: data.config.source || 'env',
-            updated_at: data.config.updated_at || '',
+            auth_type: cfg.auth_type || (cfg.client_id ? 'oauth2' : 'service_account'),
+            client_id: cfg.client_id || '',
+            client_secret: cfg.client_secret || '',
+            refresh_token: cfg.refresh_token || '',
+            client_email: cfg.client_email || '',
+            private_key: cfg.private_key || '',
+            root_folder_id: cfg.root_folder_id || '',
+            shared_drive_id: cfg.shared_drive_id || '',
+            source: cfg.source || 'env',
+            updated_at: cfg.updated_at || '',
           })
+          if (cfg.auth_type === 'service_account' && !cfg.client_id) {
+            setDriveMethod('service_account')
+          } else {
+            setDriveMethod('oauth2')
+          }
         }
       })
       .catch((err) => console.error('Fetch drive config failed:', err))
@@ -936,92 +951,178 @@ export default function MasterSettingsPage() {
                 </h2>
               </div>
               <p className="text-xs text-[var(--text-secondary)] mt-1">
-                Kredensial Service Account untuk penyimpanan otomatis dokumen jamaah (KTP, KK, Paspor, Kartu Vaksin, dan Bukti Bayar).
+                Penyimpanan otomatis dokumen pendaftaran jamaah (KTP, KK, Paspor, Kartu Vaksin, dan Bukti Transfer) langsung ke folder Google Drive.
               </p>
             </div>
-            {driveConfig.source === 'database' ? (
-              <span className="px-2.5 py-1 text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-md whitespace-nowrap self-start">
-                Tersimpan di Database
-              </span>
-            ) : (
-              <span className="px-2.5 py-1 text-xs font-medium bg-slate-100 text-slate-600 border border-slate-200 rounded-md whitespace-nowrap self-start">
-                Default dari .env
-              </span>
-            )}
+            <div className="flex items-center gap-2">
+              {driveConfig.client_id && driveConfig.refresh_token ? (
+                <span className="px-2.5 py-1 text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-md whitespace-nowrap">
+                  OAuth2 Aktif (Bebas Kuota)
+                </span>
+              ) : driveConfig.client_email ? (
+                <span className="px-2.5 py-1 text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200 rounded-md whitespace-nowrap">
+                  Service Account Aktif
+                </span>
+              ) : null}
+              {driveConfig.source === 'database' ? (
+                <span className="px-2.5 py-1 text-xs font-medium bg-slate-100 text-slate-700 border border-slate-200 rounded-md whitespace-nowrap">
+                  Database
+                </span>
+              ) : (
+                <span className="px-2.5 py-1 text-xs font-medium bg-slate-100 text-slate-500 border border-slate-200 rounded-md whitespace-nowrap">
+                  .env
+                </span>
+              )}
+            </div>
           </div>
 
-          {/* Quick upload JSON key */}
-          <div className="p-4 bg-emerald-50/60 border border-emerald-200 rounded-lg space-y-2">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <FileCode className="w-4 h-4 text-[var(--primary)]" />
-                <p className="text-xs font-semibold text-[var(--primary)]">
-                  Upload File Service Account Key (.json)
+          {/* Method Selection Tabs */}
+          <div className="flex p-1 bg-slate-100 rounded-lg text-xs font-medium border border-slate-200">
+            <button
+              type="button"
+              onClick={() => setDriveMethod('oauth2')}
+              className={`flex-1 py-1.5 px-3 rounded-md transition-all ${
+                driveMethod === 'oauth2'
+                  ? 'bg-white text-[var(--primary)] font-semibold shadow-sm'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              OAuth2 (Rekomendasi - Bebas Kuota Storage)
+            </button>
+            <button
+              type="button"
+              onClick={() => setDriveMethod('service_account')}
+              className={`flex-1 py-1.5 px-3 rounded-md transition-all ${
+                driveMethod === 'service_account'
+                  ? 'bg-white text-[var(--primary)] font-semibold shadow-sm'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              Service Account (Alternatif / Google Workspace)
+            </button>
+          </div>
+
+          {/* TAB 1: OAuth2 */}
+          {driveMethod === 'oauth2' && (
+            <div className="space-y-4">
+              <div className="p-3 bg-emerald-50/70 border border-emerald-200 rounded-lg text-xs text-slate-700 leading-relaxed">
+                <p className="font-semibold text-emerald-800 mb-1">
+                  Kredensial OAuth2 Terhubung (Adaptasi dari Sistem Preorder Pondok)
                 </p>
+                Metode ini menggunakan token OAuth2 dengan izin Drive penuh, sehingga <strong>kebal terhadap batasan Service Account Storage Quota</strong> dan dapat mengunggah ribuan file ke Google Drive personal tanpa biaya tambahan.
+              </div>
+
+              <div>
+                <Input
+                  label="Client ID (Google OAuth)"
+                  placeholder="719006269318-xxx.apps.googleusercontent.com"
+                  value={driveConfig.client_id}
+                  onChange={(e) => setDriveConfig({ ...driveConfig, client_id: e.target.value })}
+                />
+              </div>
+
+              <div>
+                <Input
+                  label="Client Secret (Google OAuth)"
+                  type="password"
+                  placeholder="GOCSPX-xxx"
+                  value={driveConfig.client_secret}
+                  onChange={(e) => setDriveConfig({ ...driveConfig, client_secret: e.target.value })}
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-[var(--text-primary)] mb-1">
+                  Refresh Token
+                </label>
+                <textarea
+                  rows={2}
+                  value={driveConfig.refresh_token}
+                  onChange={(e) => setDriveConfig({ ...driveConfig, refresh_token: e.target.value })}
+                  placeholder="1//048nZDPM24dXHCgYIARAAGAQSNwF-xxx"
+                  className="w-full px-3 py-2 text-xs font-mono border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--primary)] bg-slate-50/50"
+                />
               </div>
             </div>
-            <p className="text-xs text-slate-600">
-              Punya file JSON Service Account dari Google Cloud? Upload di sini agar Client Email & Private Key langsung terisi otomatis tanpa perlu copy-paste manual.
-            </p>
-            <div>
-              <label className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-white text-[var(--primary)] border border-emerald-300 hover:bg-emerald-50 rounded-md cursor-pointer transition-colors shadow-sm">
-                <Upload className="w-3.5 h-3.5" />
-                <span>Pilih File .json</span>
-                <input
-                  type="file"
-                  accept=".json,application/json"
-                  className="hidden"
-                  onChange={handleServiceAccountJsonUpload}
+          )}
+
+          {/* TAB 2: Service Account */}
+          {driveMethod === 'service_account' && (
+            <div className="space-y-4">
+              {/* Quick upload JSON key */}
+              <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <FileCode className="w-4 h-4 text-[var(--primary)]" />
+                    <p className="text-xs font-semibold text-[var(--primary)]">
+                      Upload File Service Account Key (.json)
+                    </p>
+                  </div>
+                </div>
+                <p className="text-xs text-slate-600">
+                  Upload file JSON dari Google Cloud Console agar Client Email & Private Key langsung terisi otomatis.
+                </p>
+                <div>
+                  <label className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-white text-[var(--primary)] border border-slate-300 hover:bg-slate-50 rounded-md cursor-pointer transition-colors shadow-sm">
+                    <Upload className="w-3.5 h-3.5" />
+                    <span>Pilih File .json</span>
+                    <input
+                      type="file"
+                      accept=".json,application/json"
+                      className="hidden"
+                      onChange={handleServiceAccountJsonUpload}
+                    />
+                  </label>
+                </div>
+              </div>
+
+              <div>
+                <Input
+                  label="Client Email (Service Account)"
+                  type="email"
+                  placeholder="misal: umrah-service@project.iam.gserviceaccount.com"
+                  value={driveConfig.client_email}
+                  onChange={(e) => setDriveConfig({ ...driveConfig, client_email: e.target.value })}
                 />
-              </label>
-            </div>
-          </div>
+                <p className="text-[11px] text-[var(--text-muted)] mt-1">
+                  Email ini harus di-share akses <strong>Editor</strong> pada folder Google Drive Anda.
+                </p>
+              </div>
 
-          {/* Form manual inputs */}
-          <div className="space-y-4">
-            <div>
-              <Input
-                label="Client Email (Service Account)"
-                type="email"
-                placeholder="misal: umrah-service@project.iam.gserviceaccount.com"
-                value={driveConfig.client_email}
-                onChange={(e) => setDriveConfig({ ...driveConfig, client_email: e.target.value })}
-              />
-              <p className="text-[11px] text-[var(--text-muted)] mt-1">
-                Email ini harus di-share akses <strong>Editor</strong> pada folder Google Drive Anda.
-              </p>
+              <div>
+                <label className="block text-xs font-medium text-[var(--text-primary)] mb-1">
+                  Private Key (RSA Private Key)
+                </label>
+                <textarea
+                  rows={3}
+                  value={driveConfig.private_key}
+                  onChange={(e) => setDriveConfig({ ...driveConfig, private_key: e.target.value })}
+                  placeholder="-----BEGIN PRIVATE KEY-----\nMIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQC...\n-----END PRIVATE KEY-----"
+                  className="w-full px-3 py-2 text-xs font-mono border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--primary)] bg-slate-50/50"
+                />
+              </div>
             </div>
+          )}
 
-            <div>
-              <label className="block text-xs font-medium text-[var(--text-primary)] mb-1">
-                Private Key (RSA Private Key)
-              </label>
-              <textarea
-                rows={4}
-                value={driveConfig.private_key}
-                onChange={(e) => setDriveConfig({ ...driveConfig, private_key: e.target.value })}
-                placeholder="-----BEGIN PRIVATE KEY-----\nMIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQC...\n-----END PRIVATE KEY-----"
-                className="w-full px-3 py-2 text-xs font-mono border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--primary)] bg-slate-50/50"
-              />
-            </div>
-
+          {/* Common Folder Configuration */}
+          <div className="pt-2 border-t border-[var(--border)] space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <Input
                   label="Root Folder ID (Google Drive)"
-                  placeholder="misal: 1a2B3c4D5e6F7g8H9..."
+                  placeholder="misal: 1SYppeQgDeGY-nUHyOf4meuRdlECx5wKQ"
                   value={driveConfig.root_folder_id}
                   onChange={(e) => setDriveConfig({ ...driveConfig, root_folder_id: e.target.value })}
                 />
                 <p className="text-[11px] text-[var(--text-muted)] mt-1">
-                  Ambil dari akhir URL folder di browser: <span className="font-mono text-[10px] bg-slate-100 px-1 py-0.5 rounded">drive.google.com/drive/folders/<b>[ID]</b></span>
+                  Folder induk tempat folder otomatis <code>02_Jamaah</code> dan subfolder per rombongan akan dibuat.
                 </p>
               </div>
 
               <div>
                 <Input
                   label="Shared Drive ID (Opsional)"
-                  placeholder="Kosongkan jika bukan Shared Drive"
+                  placeholder="Kosongkan jika bukan Google Workspace Shared Drive"
                   value={driveConfig.shared_drive_id || ''}
                   onChange={(e) => setDriveConfig({ ...driveConfig, shared_drive_id: e.target.value })}
                 />
@@ -1060,19 +1161,23 @@ export default function MasterSettingsPage() {
             <div className="pt-3 border-t border-[var(--border)] flex flex-wrap items-center justify-between gap-3">
               <button
                 type="button"
-                disabled={isTestingDrive || !driveConfig.client_email || !driveConfig.private_key || !driveConfig.root_folder_id}
+                disabled={
+                  isTestingDrive ||
+                  !driveConfig.root_folder_id ||
+                  (!driveConfig.refresh_token && (!driveConfig.client_email || !driveConfig.private_key))
+                }
                 onClick={handleTestDriveConnection}
                 className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium bg-slate-100 text-slate-700 hover:bg-slate-200 rounded-lg transition-colors border border-slate-300 disabled:opacity-50"
               >
                 {isTestingDrive ? (
                   <>
                     <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    <span>Menguji Koneksi ke Google...</span>
+                    <span>Menguji Koneksi & Izin Tulis...</span>
                   </>
                 ) : (
                   <>
                     <RefreshCw className="w-3.5 h-3.5" />
-                    <span>Uji Koneksi (Test Connection)</span>
+                    <span>Uji Koneksi & Izin Tulis</span>
                   </>
                 )}
               </button>

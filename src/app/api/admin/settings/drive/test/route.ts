@@ -1,35 +1,71 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { google } from 'googleapis'
+import { Readable } from 'stream'
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
-    const { client_email, private_key, root_folder_id } = body
+    const {
+      client_id,
+      client_secret,
+      refresh_token,
+      client_email,
+      private_key,
+      root_folder_id,
+    } = body
 
-    if (!client_email || !private_key || !root_folder_id) {
+    if (!root_folder_id) {
       return NextResponse.json(
-        { error: 'Client Email, Private Key, dan Root Folder ID wajib diisi untuk pengetesan.' },
+        { error: 'Root Folder ID Google Drive wajib diisi untuk pengetesan.' },
         { status: 400 }
       )
     }
 
-    const cleanedPrivateKey = private_key.replace(/\\n/g, '\n').trim()
+    let auth: any
 
-    // Initialize Google Drive client with provided credentials
-    const auth = new google.auth.GoogleAuth({
-      credentials: {
-        client_email: client_email.trim(),
-        private_key: cleanedPrivateKey,
-      },
-      scopes: ['https://www.googleapis.com/auth/drive'],
-    })
+    const hasOAuth = Boolean(client_id && client_secret && refresh_token)
+    const hasServiceAccount = Boolean(client_email && private_key)
+
+    if (hasOAuth) {
+      const oauth2Client = new google.auth.OAuth2(
+        client_id.trim(),
+        client_secret.trim(),
+        'https://developers.google.com/oauthplayground'
+      )
+      oauth2Client.setCredentials({
+        refresh_token: refresh_token.trim(),
+      })
+      auth = oauth2Client
+    } else if (hasServiceAccount) {
+      let key = private_key.trim()
+      if (key.startsWith('"') && key.endsWith('"')) {
+        key = key.substring(1, key.length - 1)
+      }
+      key = key.replace(/\\n/g, '\n')
+
+      auth = new google.auth.GoogleAuth({
+        credentials: {
+          client_email: client_email.trim(),
+          private_key: key,
+        },
+        scopes: ['https://www.googleapis.com/auth/drive'],
+      })
+    } else {
+      return NextResponse.json(
+        {
+          error:
+            'Harap masukkan Kredensial OAuth2 (Client ID, Secret, Refresh Token) atau Service Account untuk diuji.',
+        },
+        { status: 400 }
+      )
+    }
 
     const drive = google.drive({ version: 'v3', auth })
 
-    // Verify root folder access
+    // 1. Verify root folder access
     const folderRes = await drive.files.get({
       fileId: root_folder_id.trim(),
-      fields: 'id, name, mimeType, capabilities',
+      fields: 'id, name, mimeType',
       supportsAllDrives: true,
     })
 
@@ -49,19 +85,61 @@ export async function POST(req: NextRequest) {
       )
     }
 
+    // 2. Perform actual upload write & delete test to ensure quota & permissions are valid!
+    try {
+      const testBuffer = Buffer.from('Google Drive Test Connection Check')
+      const readable = new Readable()
+      readable.push(testBuffer)
+      readable.push(null)
+
+      const testFile = await drive.files.create({
+        requestBody: {
+          name: `__test_conn_${Date.now()}.txt`,
+          parents: [root_folder_id.trim()],
+        },
+        media: {
+          mimeType: 'text/plain',
+          body: readable,
+        },
+        fields: 'id',
+        supportsAllDrives: true,
+      })
+
+      if (testFile.data.id) {
+        // Delete test file cleanly
+        await drive.files.delete({
+          fileId: testFile.data.id,
+          supportsAllDrives: true,
+        })
+      }
+    } catch (writeErr: any) {
+      console.error('[settings/drive/test] Write test failed:', writeErr)
+      const writeMsg = writeErr?.message || 'Izin tulis gagal'
+      return NextResponse.json(
+        {
+          error: `Folder terhubung, namun gagal mengunggah file uji: ${writeMsg}. ${
+            !hasOAuth
+              ? 'Catatan: Service Account sering terkena batas kuota personal drive (Storage Quota). Gunakan OAuth2 atau Shared Drive.'
+              : ''
+          }`,
+        },
+        { status: 403 }
+      )
+    }
+
     return NextResponse.json({
       success: true,
-      message: 'Koneksi ke Google Drive Berhasil!',
+      message: `Koneksi dan Izin Tulis ke Google Drive Berhasil! (Metode: ${hasOAuth ? 'OAuth2 Bebas Kuota' : 'Service Account'})`,
       folder_name: folderRes.data.name,
       folder_id: folderRes.data.id,
-      can_add_children: folderRes.data.capabilities?.canAddChildren ?? true,
+      auth_type: hasOAuth ? 'oauth2' : 'service_account',
     })
   } catch (err: unknown) {
     console.error('[settings/drive/test]', err)
     const errorMsg =
       err instanceof Error
         ? err.message
-        : 'Gagal terhubung ke Google Drive. Periksa kembali kredensial atau pastikan Service Account telah diberi akses Editor ke folder tersebut.'
+        : 'Gagal terhubung ke Google Drive. Periksa kembali kredensial atau pastikan akses folder sudah diberikan.'
 
     return NextResponse.json({ error: errorMsg }, { status: 500 })
   }
