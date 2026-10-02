@@ -10,93 +10,52 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { picSchema, PicFormValues } from '@/lib/validations'
 import { createClient } from '@/lib/supabase/client'
-
-const FALLBACK_DEPARTURE_POINTS: DeparturePoint[] = [
-  { id: 'b8c7a155-0a16-4c28-bf5e-c44682a0e1c3', code: 'JKT', name: 'Jakarta (Soekarno-Hatta / CGK)', description: null, is_active: true, sort_order: 1, created_at: '' },
-  { id: 'e966b30b-738b-42ef-a9b1-c65044553166', code: 'SBY', name: 'Surabaya (Juanda / SUB)', description: null, is_active: true, sort_order: 2, created_at: '' },
-  { id: '56229ce8-ac9b-45cd-857f-6551721149e6', code: 'GNT', name: 'Solo / Gontor (Adi Soemarmo / SOC)', description: null, is_active: true, sort_order: 3, created_at: '' },
-]
-
-const FALLBACK_PACKAGES: Package[] = [
-  {
-    id: '14d65770-ba52-4b34-8582-b4c5b9a2cf36',
-    name: 'Paket Quad (Sekamar 4 Orang) (Rp 37.200.000)',
-    price: 37200000,
-    dp_amount: 5000000,
-    currency: 'IDR',
-    departure_date: '2026-10-01',
-    return_date: '2026-10-12',
-    is_active: true,
-    created_at: '',
-    updated_at: '',
-  },
-  {
-    id: '7d73b4d9-51b8-44f2-976c-6da6cf7e61c1',
-    name: 'Paket Triple (Sekamar 3 Orang) (Rp 39.500.000)',
-    price: 39500000,
-    dp_amount: 5000000,
-    currency: 'IDR',
-    departure_date: '2026-10-01',
-    return_date: '2026-10-12',
-    is_active: true,
-    created_at: '',
-    updated_at: '',
-  },
-  {
-    id: '8bf8ad98-8316-474b-848d-18284dabde9d',
-    name: 'Paket Double (Sekamar 2 Orang) (Rp 42.000.000)',
-    price: 42000000,
-    dp_amount: 5000000,
-    currency: 'IDR',
-    departure_date: '2026-10-01',
-    return_date: '2026-10-12',
-    is_active: true,
-    created_at: '',
-    updated_at: '',
-  },
-]
+import { AlertCircle } from 'lucide-react'
 
 export function Step2Pic() {
   const { draft, setDraft, updateMember, nextStep, prevStep } = useRegistration()
-  const [departurePoints, setDeparturePoints] = useState<DeparturePoint[]>(FALLBACK_DEPARTURE_POINTS)
-  const [packages, setPackages] = useState<Package[]>(FALLBACK_PACKAGES)
-  const [loading, setLoading] = useState(false)
+  const [departurePoints, setDeparturePoints] = useState<DeparturePoint[]>([])
+  const [packages, setPackages] = useState<Package[]>([])
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     const supabase = createClient()
     Promise.all([
-      supabase.from('departure_points').select('*').order('sort_order'),
-      supabase.from('packages').select('*').order('price', { ascending: true }),
+      supabase.from('departure_points').select('*').eq('is_active', true).order('sort_order'),
+      supabase.from('packages').select('*').eq('is_active', true).order('price', { ascending: true }),
     ])
       .then(([dp, pkg]) => {
-        const activeDp = (dp.data || []).filter((d: DeparturePoint) => d.is_active !== false)
-        const finalDp = activeDp.length > 0 ? activeDp : (dp.data && dp.data.length > 0 ? dp.data : FALLBACK_DEPARTURE_POINTS)
+        const activeDp = dp.data || []
+        const activePkg = pkg.data || []
 
-        const activePkg = (pkg.data || []).filter((p: Package) => p.is_active !== false)
-        const finalPkg = activePkg.length > 0 ? activePkg : (pkg.data && pkg.data.length > 0 ? pkg.data : FALLBACK_PACKAGES)
+        setDeparturePoints(activeDp)
+        setPackages(activePkg)
 
-        setDeparturePoints(finalDp)
-        setPackages(finalPkg)
-
-        // Check if draft has valid package_id; if not, reset to first valid package
-        const isPkgValid = finalPkg.some((p: Package) => p.id === draft.package_id)
-        if (!isPkgValid && finalPkg.length > 0) {
-          setDraft({ package_id: finalPkg[0].id })
-          setValue('package_id', finalPkg[0].id)
+        // Check if draft has valid package_id from active packages
+        const isPkgValid = activePkg.some((p: Package) => p.id === draft.package_id)
+        if (!isPkgValid && activePkg.length > 0) {
+          setDraft({ package_id: activePkg[0].id })
+          setValue('package_id', activePkg[0].id)
+        } else if (activePkg.length === 0) {
+          setDraft({ package_id: '' })
+          setValue('package_id', '')
         }
 
-        // Check if draft has valid departure_point_id; if not, reset to first valid departure point
-        const isDpValid = finalDp.some((d: DeparturePoint) => d.id === draft.departure_point_id)
-        if (!isDpValid && finalDp.length > 0) {
-          setDraft({ departure_point_id: finalDp[0].id })
-          setValue('departure_point_id', finalDp[0].id)
+        // Check if draft has valid departure_point_id from active departure points
+        const isDpValid = activeDp.some((d: DeparturePoint) => d.id === draft.departure_point_id)
+        if (!isDpValid && activeDp.length > 0) {
+          setDraft({ departure_point_id: activeDp[0].id })
+          setValue('departure_point_id', activeDp[0].id)
+        } else if (activeDp.length === 0) {
+          setDraft({ departure_point_id: '' })
+          setValue('departure_point_id', '')
         }
 
         setLoading(false)
       })
       .catch(() => {
-        setDeparturePoints(FALLBACK_DEPARTURE_POINTS)
-        setPackages(FALLBACK_PACKAGES)
+        setDeparturePoints([])
+        setPackages([])
         setLoading(false)
       })
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
@@ -117,8 +76,8 @@ export function Step2Pic() {
       phone: draft.pic_phone,
       email: draft.pic_email,
       domicile_city: draft.pic_domicile_city,
-      departure_point_id: draft.departure_point_id || FALLBACK_DEPARTURE_POINTS[0].id,
-      package_id: draft.package_id || FALLBACK_PACKAGES[0].id,
+      departure_point_id: draft.departure_point_id || '',
+      package_id: draft.package_id || '',
     },
   })
 
@@ -140,7 +99,7 @@ export function Step2Pic() {
       pic_email: values.email ?? '',
       pic_domicile_city: values.domicile_city,
       departure_point_id: values.departure_point_id,
-      package_id: values.package_id || packages[0]?.id || FALLBACK_PACKAGES[0].id,
+      package_id: values.package_id || packages[0]?.id || '',
       pic_is_departing: isDeparting,
     })
 
@@ -285,35 +244,63 @@ export function Step2Pic() {
       </div>
 
       {/* Departure point */}
-      <Select
-        label="Titik Keberangkatan"
-        id="departure-point"
-        required
-        placeholder="-- Pilih titik keberangkatan --"
-        options={departurePoints.map((dp) => ({ value: dp.id, label: dp.name }))}
-        error={errors.departure_point_id?.message}
-        {...register('departure_point_id')}
-      />
+      {departurePoints.length === 0 ? (
+        <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-lg flex items-start gap-2.5 text-xs text-amber-900">
+          <AlertCircle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+          <div>
+            <p className="font-semibold text-xs mb-0.5">Titik Keberangkatan Belum Tersedia</p>
+            <p className="text-amber-800/90 leading-relaxed">
+              Saat ini belum ada titik keberangkatan yang aktif di sistem pengaturan panitia.
+            </p>
+          </div>
+        </div>
+      ) : (
+        <Select
+          label="Titik Keberangkatan"
+          id="departure-point"
+          required
+          placeholder="-- Pilih titik keberangkatan --"
+          options={departurePoints.map((dp) => ({ value: dp.id, label: dp.name }))}
+          error={errors.departure_point_id?.message}
+          {...register('departure_point_id')}
+        />
+      )}
 
       {/* Package Selection */}
-      <Select
-        label="Pilihan Paket Umrah"
-        id="package"
-        required
-        placeholder="-- Pilih paket umrah --"
-        options={packages.map((p) => ({
-          value: p.id,
-          label: `${p.name} — Rp ${Number(p.price).toLocaleString('id-ID')}`,
-        }))}
-        error={errors.package_id?.message}
-        {...register('package_id')}
-      />
+      {packages.length === 0 ? (
+        <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-lg flex items-start gap-2.5 text-xs text-amber-900">
+          <AlertCircle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+          <div>
+            <p className="font-semibold text-xs mb-0.5">Belum Ada Paket Umrah yang Aktif</p>
+            <p className="text-amber-800/90 leading-relaxed">
+              Saat ini belum ada paket umrah yang diaktifkan oleh Panitia di sistem pengaturan. Pendaftaran tidak dapat dilanjutkan sampai paket aktif dibuka oleh Panitia.
+            </p>
+          </div>
+        </div>
+      ) : (
+        <Select
+          label="Pilihan Paket Umrah"
+          id="package"
+          required
+          placeholder="-- Pilih paket umrah --"
+          options={packages.map((p) => ({
+            value: p.id,
+            label: `${p.name} — Rp ${Number(p.price).toLocaleString('id-ID')}`,
+          }))}
+          error={errors.package_id?.message}
+          {...register('package_id')}
+        />
+      )}
 
       <div className="flex justify-between pt-2">
         <Button type="button" variant="ghost" onClick={prevStep}>
           Kembali
         </Button>
-        <Button type="submit" size="lg">
+        <Button
+          type="submit"
+          size="lg"
+          disabled={loading || packages.length === 0 || departurePoints.length === 0}
+        >
           Lanjut ke Data Jamaah
         </Button>
       </div>

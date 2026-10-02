@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { MapPin, FileText, CreditCard, CheckCircle, ChevronRight, Phone, Mail } from 'lucide-react'
+import { MapPin, FileText, CreditCard, CheckCircle, ChevronRight, Phone, Mail, AlertCircle, Clock, Layers } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { createClient } from '@/lib/supabase/server'
 
@@ -13,26 +13,39 @@ async function getDeparturePoints() {
   return data ?? []
 }
 
-async function getActivePackage() {
+async function getActivePackages() {
   const supabase = await createClient()
   const { data } = await supabase
     .from('packages')
     .select('*')
     .eq('is_active', true)
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .single()
-  return data
+    .order('price', { ascending: true })
+  return data ?? []
+}
+
+async function getGeneralSettings() {
+  const supabase = await createClient()
+  const { data } = await supabase
+    .from('app_settings')
+    .select('value')
+    .eq('key', 'general_parameters')
+    .maybeSingle()
+  return (data?.value as Record<string, unknown> | undefined) || {}
 }
 
 export default async function HomePage() {
-  const [departurePoints, activePackage] = await Promise.all([
+  const [departurePoints, activePackages, generalSettings] = await Promise.all([
     getDeparturePoints(),
-    getActivePackage(),
+    getActivePackages(),
+    getGeneralSettings(),
   ])
 
-  const price = activePackage?.price ?? 37200000
-  const dpAmount = activePackage?.dp_amount ?? 5000000
+  const isRegistrationOpen = generalSettings.registrationOpen !== false
+  const hasActivePackages = activePackages.length > 0
+  const isAvailable = isRegistrationOpen && hasActivePackages
+
+  const minPrice = hasActivePackages ? activePackages[0].price : null
+  const minDp = hasActivePackages ? activePackages[0].dp_amount : null
 
   const REQUIRED_DOCS = [
     { icon: '📄', label: 'KTP', note: 'Wajib untuk jamaah usia 17 tahun ke atas' },
@@ -91,9 +104,15 @@ export default async function HomePage() {
               Umrah 100 Tahun Gontor
             </span>
           </div>
-          <Link href="/daftar">
-            <Button size="sm">Mulai Pendaftaran</Button>
-          </Link>
+          {isAvailable ? (
+            <Link href="/daftar">
+              <Button size="sm">Mulai Pendaftaran</Button>
+            </Link>
+          ) : (
+            <Link href="/status">
+              <Button variant="outline" size="sm">Cek Status</Button>
+            </Link>
+          )}
         </div>
       </header>
 
@@ -114,29 +133,65 @@ export default async function HomePage() {
             mungkin.
           </p>
 
-          {/* Price info */}
-          <div className="flex flex-col sm:flex-row gap-3 mb-8">
-            <div className="border border-[var(--border)] rounded-[var(--radius-md)] px-4 py-3">
-              <p className="text-xs text-[var(--text-muted)] mb-0.5">Biaya per jamaah</p>
-              <p className="text-lg font-semibold text-[var(--text-primary)]">
-                Rp{price.toLocaleString('id-ID')}
-              </p>
+          {/* Registration Notice / Status */}
+          {!isRegistrationOpen ? (
+            <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl mb-8 flex items-start gap-3 text-amber-900">
+              <Clock className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+              <div>
+                <p className="font-semibold text-sm text-amber-950">Pendaftaran Periode Ini Sedang Ditutup</p>
+                <p className="text-xs text-amber-800/90 mt-1 leading-relaxed">
+                  {(generalSettings.notes as string) ||
+                    'Alhamdulillah rentetan pelaksanaan umrah telah selesai dan sistem sedang dalam persiapan untuk musim umrah berikutnya.'}
+                </p>
+              </div>
             </div>
-            <div className="border border-[var(--border)] rounded-[var(--radius-md)] px-4 py-3">
-              <p className="text-xs text-[var(--text-muted)] mb-0.5">DP minimal</p>
-              <p className="text-lg font-semibold text-[var(--text-primary)]">
-                Rp{dpAmount.toLocaleString('id-ID')}
-              </p>
+          ) : !hasActivePackages ? (
+            <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl mb-8 flex items-start gap-3 text-amber-900">
+              <Layers className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+              <div>
+                <p className="font-semibold text-sm text-amber-950">Pilihan Paket Sedang Disiapkan</p>
+                <p className="text-xs text-amber-800/90 mt-1 leading-relaxed">
+                  Pilihan paket kamar, biaya, dan akomodasi untuk periode ini sedang dalam tahap penyesuaian oleh Panitia. Pendaftaran akan dibuka segera setelah paket resmi diaktifkan.
+                </p>
+              </div>
             </div>
-          </div>
+          ) : (
+            /* Active Packages Info */
+            <div className="space-y-4 mb-8">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {activePackages.map((pkg) => (
+                  <div
+                    key={pkg.id}
+                    className="border border-emerald-200 bg-emerald-50/40 rounded-[var(--radius-md)] p-3.5 space-y-1"
+                  >
+                    <p className="text-xs font-semibold text-emerald-900 line-clamp-1">{pkg.name}</p>
+                    <p className="text-base font-bold text-[var(--text-primary)]">
+                      Rp{Number(pkg.price).toLocaleString('id-ID')}
+                    </p>
+                    <p className="text-[11px] text-[var(--text-muted)]">
+                      DP Rp{Number(pkg.dp_amount).toLocaleString('id-ID')}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           <div className="flex flex-col sm:flex-row gap-3">
-            <Link href="/daftar">
-              <Button size="lg">
-                Mulai Pendaftaran
-                <ChevronRight className="w-4 h-4" />
-              </Button>
-            </Link>
+            {isAvailable ? (
+              <Link href="/daftar">
+                <Button size="lg">
+                  Mulai Pendaftaran
+                  <ChevronRight className="w-4 h-4" />
+                </Button>
+              </Link>
+            ) : (
+              <Link href="/daftar">
+                <Button variant="secondary" size="lg">
+                  Informasi Pendaftaran
+                </Button>
+              </Link>
+            )}
             <Link href="/status">
               <Button variant="outline" size="lg">
                 Cek Status Pendaftaran

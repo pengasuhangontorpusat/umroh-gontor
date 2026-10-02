@@ -39,117 +39,85 @@ export async function POST(req: NextRequest) {
 
     const supabase = await createServiceClient()
 
-    // Resolve package safely (guarantees FK constraint will NEVER be violated)
-    let targetPackageId = package_id
-    let pkg = null
+    // 1. Verify that registration is currently open in settings
+    const { data: generalSetting } = await supabase
+      .from('app_settings')
+      .select('value')
+      .eq('key', 'general_parameters')
+      .maybeSingle()
 
-    const { data: foundPkg } = await supabase
+    const generalParams = generalSetting?.value as Record<string, unknown> | undefined
+    if (generalParams && generalParams.registrationOpen === false) {
+      return NextResponse.json(
+        {
+          error:
+            'Pendaftaran saat ini sedang ditutup oleh Panitia Umrah 100 Tahun Gontor.',
+        },
+        { status: 400 }
+      )
+    }
+
+    // 2. Verify that active packages exist
+    const { data: activePackages } = await supabase
       .from('packages')
       .select('*')
-      .eq('id', package_id)
-      .maybeSingle()
+      .eq('is_active', true)
+      .order('price', { ascending: true })
 
-    if (foundPkg) {
-      pkg = foundPkg
-      targetPackageId = foundPkg.id
-    } else {
-      // 1. Look for active package
-      const { data: firstActivePkg } = await supabase
-        .from('packages')
-        .select('*')
-        .eq('is_active', true)
-        .order('price', { ascending: true })
-        .limit(1)
-        .maybeSingle()
-
-      if (firstActivePkg) {
-        pkg = firstActivePkg
-        targetPackageId = firstActivePkg.id
-      } else {
-        // 2. Look for ANY package in database
-        const { data: anyPkg } = await supabase
-          .from('packages')
-          .select('*')
-          .order('created_at', { ascending: true })
-          .limit(1)
-          .maybeSingle()
-
-        if (anyPkg) {
-          pkg = anyPkg
-          targetPackageId = anyPkg.id
-        } else {
-          // 3. Fallback: create standard package so FK constraint is satisfied
-          const { data: createdPkg } = await supabase
-            .from('packages')
-            .insert({
-              name: 'Paket Quad (Sekamar 4 Orang)',
-              price: 37200000,
-              dp_amount: 5000000,
-              currency: 'IDR',
-              is_active: true,
-            })
-            .select()
-            .single()
-
-          if (createdPkg) {
-            pkg = createdPkg
-            targetPackageId = createdPkg.id
-          } else {
-            pkg = {
-              price: 37200000,
-              dp_amount: 5000000,
-            }
-          }
-        }
-      }
+    if (!activePackages || activePackages.length === 0) {
+      return NextResponse.json(
+        {
+          error:
+            'Pendaftaran belum dapat diproses karena belum ada paket umrah yang aktif di sistem pengaturan panitia.',
+        },
+        { status: 400 }
+      )
     }
 
-    // Resolve departure point safely (guarantees FK constraint will NEVER be violated)
-    let targetDeparturePointId = departure_point_id
-    const { data: foundDp } = await supabase
+    // Verify selected package is active
+    const selectedPkg = activePackages.find((p) => p.id === package_id)
+    if (!selectedPkg) {
+      return NextResponse.json(
+        {
+          error:
+            'Paket umrah yang Anda pilih tidak aktif atau sudah tidak tersedia. Silakan pilih paket yang aktif.',
+        },
+        { status: 400 }
+      )
+    }
+
+    const pkg = selectedPkg
+    const targetPackageId = selectedPkg.id
+
+    // 3. Verify that active departure points exist
+    const { data: activeDps } = await supabase
       .from('departure_points')
-      .select('id')
-      .eq('id', departure_point_id)
-      .maybeSingle()
+      .select('*')
+      .eq('is_active', true)
+      .order('sort_order', { ascending: true })
 
-    if (foundDp) {
-      targetDeparturePointId = foundDp.id
-    } else {
-      const { data: firstActiveDp } = await supabase
-        .from('departure_points')
-        .select('id')
-        .eq('is_active', true)
-        .order('sort_order', { ascending: true })
-        .limit(1)
-        .maybeSingle()
-
-      if (firstActiveDp) {
-        targetDeparturePointId = firstActiveDp.id
-      } else {
-        const { data: anyDp } = await supabase
-          .from('departure_points')
-          .select('id')
-          .limit(1)
-          .maybeSingle()
-
-        if (anyDp) {
-          targetDeparturePointId = anyDp.id
-        } else {
-          const { data: createdDp } = await supabase
-            .from('departure_points')
-            .insert({
-              code: 'JKT',
-              name: 'Jakarta (Soekarno-Hatta / CGK)',
-              is_active: true,
-              sort_order: 1,
-            })
-            .select()
-            .single()
-
-          targetDeparturePointId = createdDp ? createdDp.id : null
-        }
-      }
+    if (!activeDps || activeDps.length === 0) {
+      return NextResponse.json(
+        {
+          error:
+            'Pendaftaran belum dapat diproses karena belum ada titik keberangkatan yang aktif.',
+        },
+        { status: 400 }
+      )
     }
+
+    const selectedDp = activeDps.find((d) => d.id === departure_point_id)
+    if (!selectedDp) {
+      return NextResponse.json(
+        {
+          error:
+            'Titik keberangkatan yang Anda pilih tidak aktif atau sudah tidak tersedia.',
+        },
+        { status: 400 }
+      )
+    }
+
+    const targetDeparturePointId = selectedDp.id
 
     // Generate registration code using DB function with fallback
     let registrationCode = ''
