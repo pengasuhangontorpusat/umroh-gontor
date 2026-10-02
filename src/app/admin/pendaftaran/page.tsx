@@ -1,6 +1,7 @@
 import { createServiceClient } from '@/lib/supabase/server'
 import { GroupStatusBadge } from '@/components/ui/StatusBadge'
 import { formatDate, maskNik, getGroupPic } from '@/lib/utils'
+import { DeleteRegistrationButton, DeleteJamaahButton } from '@/components/admin'
 import Link from 'next/link'
 import { Search, Users, ClipboardList } from 'lucide-react'
 
@@ -52,7 +53,7 @@ export default async function PendaftaranPage({ searchParams }: PageProps) {
     .select(
       `
       *,
-      registration_groups!inner(
+      registration_groups!jamaahs_group_id_fkey!inner(
         id,
         registration_code,
         group_status,
@@ -225,9 +226,16 @@ export default async function PendaftaranPage({ searchParams }: PageProps) {
                         })()}
                       </td>
                       <td className="px-4 py-3 text-center">
-                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                          {((group._count as Record<string, number>)?.count as number) ?? 1} org
-                        </span>
+                        {(() => {
+                          const count = Array.isArray(group._count)
+                            ? (group._count[0]?.count ?? 1)
+                            : (((group._count as Record<string, unknown>)?.count as number) ?? 1)
+                          return (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                              {count} org
+                            </span>
+                          )
+                        })()}
                       </td>
                       <td className="px-4 py-3 text-[var(--text-secondary)]">
                         {((group.departure_point as Record<string, unknown>)?.name as string) ?? '—'}
@@ -239,12 +247,20 @@ export default async function PendaftaranPage({ searchParams }: PageProps) {
                         {formatDate(group.created_at as string)}
                       </td>
                       <td className="px-4 py-3 text-center">
-                        <Link
-                          href={`/admin/pendaftaran/${group.id as string}`}
-                          className="inline-flex items-center px-2.5 py-1 text-xs font-medium rounded bg-[var(--surface)] text-[var(--text-primary)] border border-[var(--border)] hover:bg-[var(--primary)] hover:text-white transition-colors"
-                        >
-                          Kelola & Verifikasi
-                        </Link>
+                        <div className="flex items-center justify-center gap-1.5">
+                          <Link
+                            href={`/admin/pendaftaran/${group.id as string}`}
+                            className="inline-flex items-center px-2.5 py-1 text-xs font-medium rounded bg-[var(--surface)] text-[var(--text-primary)] border border-[var(--border)] hover:bg-[var(--primary)] hover:text-white transition-colors"
+                          >
+                            Kelola & Verifikasi
+                          </Link>
+                          <DeleteRegistrationButton
+                            groupId={group.id as string}
+                            registrationCode={group.registration_code as string}
+                            picName={getGroupPic(group as Record<string, unknown>).name}
+                            variant="icon"
+                          />
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -316,12 +332,19 @@ export default async function PendaftaranPage({ searchParams }: PageProps) {
                           </Link>
                         </td>
                         <td className="px-4 py-3 text-center">
-                          <Link
-                            href={`/admin/pendaftaran/${group?.id as string}`}
-                            className="inline-flex items-center px-2 py-1 text-xs font-medium rounded bg-[var(--surface)] text-[var(--text-primary)] border border-[var(--border)] hover:bg-[var(--primary)] hover:text-white transition-colors"
-                          >
-                            Detail
-                          </Link>
+                          <div className="flex items-center justify-center gap-1.5">
+                            <Link
+                              href={`/admin/pendaftaran/${group?.id as string}`}
+                              className="inline-flex items-center px-2 py-1 text-xs font-medium rounded bg-[var(--surface)] text-[var(--text-primary)] border border-[var(--border)] hover:bg-[var(--primary)] hover:text-white transition-colors"
+                            >
+                              Detail
+                            </Link>
+                            <DeleteJamaahButton
+                              jamaahId={j.id as string}
+                              jamaahName={j.full_name as string}
+                              variant="icon"
+                            />
+                          </div>
                         </td>
                       </tr>
                     )

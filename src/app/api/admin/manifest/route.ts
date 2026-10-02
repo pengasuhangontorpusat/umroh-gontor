@@ -13,17 +13,26 @@ export async function GET(req: NextRequest) {
     .from('jamaahs')
     .select(`
       *,
-      registration_groups!inner(
+      registration_groups!jamaahs_group_id_fkey!inner(
         registration_code,
         type,
         group_status,
+        departure_point_id,
         departure_point:departure_points(name, code)
       )
     `)
     .order('full_name')
 
   if (departure) {
-    query = query.eq('registration_groups.departure_point.code', departure)
+    const { data: dp } = await supabase
+      .from('departure_points')
+      .select('id')
+      .eq('code', departure)
+      .maybeSingle()
+
+    if (dp?.id) {
+      query = query.eq('registration_groups.departure_point_id', dp.id)
+    }
   }
 
   const { data: jamaahs, error } = await query

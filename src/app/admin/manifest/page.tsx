@@ -10,10 +10,11 @@ async function getManifestData(departure?: string, q?: string) {
     .from('jamaahs')
     .select(`
       *,
-      registration_groups!inner(
+      registration_groups!jamaahs_group_id_fkey!inner(
         id,
         registration_code,
         group_status,
+        departure_point_id,
         departure_point:departure_points(name, code)
       )
     `)
@@ -21,7 +22,15 @@ async function getManifestData(departure?: string, q?: string) {
     .neq('registration_groups.group_status', 'cancelled')
 
   if (departure) {
-    query = query.eq('registration_groups.departure_point.code', departure)
+    const { data: dp } = await supabase
+      .from('departure_points')
+      .select('id')
+      .eq('code', departure)
+      .maybeSingle()
+
+    if (dp?.id) {
+      query = query.eq('registration_groups.departure_point_id', dp.id)
+    }
   }
 
   if (q) {

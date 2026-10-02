@@ -6,6 +6,8 @@ import {
   UpdateStatusForm,
   DocumentVerificationActions,
   PaymentVerificationActions,
+  DeleteRegistrationButton,
+  DeleteJamaahButton,
 } from '@/components/admin'
 import Link from 'next/link'
 import { ChevronLeft, ExternalLink } from 'lucide-react'
@@ -62,6 +64,13 @@ export default async function GroupDetailPage({ params }: PageProps) {
           </div>
           <div className="flex items-center gap-3">
             <GroupStatusBadge status={group.group_status} />
+            <DeleteRegistrationButton
+              groupId={id}
+              registrationCode={group.registration_code}
+              picName={getGroupPic(group as Record<string, unknown>).name}
+              redirectAfterDelete={true}
+              variant="button"
+            />
           </div>
         </div>
 
@@ -152,6 +161,13 @@ export default async function GroupDetailPage({ params }: PageProps) {
                       </p>
                     )}
                   </div>
+                  {jamaahs.length > 1 && (
+                    <DeleteJamaahButton
+                      jamaahId={jamaah.id as string}
+                      jamaahName={jamaah.full_name as string}
+                      variant="button"
+                    />
+                  )}
                 </div>
 
                 {/* Documents */}
