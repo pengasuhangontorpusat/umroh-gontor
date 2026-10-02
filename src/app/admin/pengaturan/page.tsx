@@ -1016,7 +1016,7 @@ export default function MasterSettingsPage() {
                 <Input
                   label="Client ID (Google OAuth)"
                   placeholder="719006269318-xxx.apps.googleusercontent.com"
-                  value={driveConfig.client_id}
+                  value={driveConfig.client_id || ''}
                   onChange={(e) => setDriveConfig({ ...driveConfig, client_id: e.target.value })}
                 />
               </div>
@@ -1026,7 +1026,7 @@ export default function MasterSettingsPage() {
                   label="Client Secret (Google OAuth)"
                   type="password"
                   placeholder="GOCSPX-xxx"
-                  value={driveConfig.client_secret}
+                  value={driveConfig.client_secret || ''}
                   onChange={(e) => setDriveConfig({ ...driveConfig, client_secret: e.target.value })}
                 />
               </div>
@@ -1037,7 +1037,7 @@ export default function MasterSettingsPage() {
                 </label>
                 <textarea
                   rows={2}
-                  value={driveConfig.refresh_token}
+                  value={driveConfig.refresh_token || ''}
                   onChange={(e) => setDriveConfig({ ...driveConfig, refresh_token: e.target.value })}
                   placeholder="1//048nZDPM24dXHCgYIARAAGAQSNwF-xxx"
                   className="w-full px-3 py-2 text-xs font-mono border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--primary)] bg-slate-50/50"
@@ -1081,7 +1081,7 @@ export default function MasterSettingsPage() {
                   label="Client Email (Service Account)"
                   type="email"
                   placeholder="misal: umrah-service@project.iam.gserviceaccount.com"
-                  value={driveConfig.client_email}
+                  value={driveConfig.client_email || ''}
                   onChange={(e) => setDriveConfig({ ...driveConfig, client_email: e.target.value })}
                 />
                 <p className="text-[11px] text-[var(--text-muted)] mt-1">
@@ -1095,7 +1095,7 @@ export default function MasterSettingsPage() {
                 </label>
                 <textarea
                   rows={3}
-                  value={driveConfig.private_key}
+                  value={driveConfig.private_key || ''}
                   onChange={(e) => setDriveConfig({ ...driveConfig, private_key: e.target.value })}
                   placeholder="-----BEGIN PRIVATE KEY-----\nMIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQC...\n-----END PRIVATE KEY-----"
                   className="w-full px-3 py-2 text-xs font-mono border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--primary)] bg-slate-50/50"
@@ -1111,7 +1111,7 @@ export default function MasterSettingsPage() {
                 <Input
                   label="Root Folder ID (Google Drive)"
                   placeholder="misal: 1SYppeQgDeGY-nUHyOf4meuRdlECx5wKQ"
-                  value={driveConfig.root_folder_id}
+                  value={driveConfig.root_folder_id || ''}
                   onChange={(e) => setDriveConfig({ ...driveConfig, root_folder_id: e.target.value })}
                 />
                 <p className="text-[11px] text-[var(--text-muted)] mt-1">
@@ -1239,13 +1239,13 @@ export default function MasterSettingsPage() {
               <Input
                 label="Target Kuota Total Jamaah"
                 type="number"
-                value={generalSettings.totalQuota}
+                value={generalSettings.totalQuota ?? 0}
                 onChange={(e) => setGeneralSettings({ ...generalSettings, totalQuota: Number(e.target.value) })}
               />
               <Input
                 label="Nominal Minimum DP (Rp)"
                 type="number"
-                value={generalSettings.dpMinimum}
+                value={generalSettings.dpMinimum ?? 0}
                 onChange={(e) => setGeneralSettings({ ...generalSettings, dpMinimum: Number(e.target.value) })}
               />
             </div>
@@ -1254,13 +1254,13 @@ export default function MasterSettingsPage() {
               <Input
                 label="WhatsApp Customer Care / Panitia"
                 type="tel"
-                value={generalSettings.helpdeskWhatsapp}
+                value={generalSettings.helpdeskWhatsapp || ''}
                 onChange={(e) => setGeneralSettings({ ...generalSettings, helpdeskWhatsapp: e.target.value })}
               />
               <Input
                 label="Email Bantuan"
                 type="email"
-                value={generalSettings.contactEmail}
+                value={generalSettings.contactEmail || ''}
                 onChange={(e) => setGeneralSettings({ ...generalSettings, contactEmail: e.target.value })}
               />
             </div>
@@ -1271,7 +1271,7 @@ export default function MasterSettingsPage() {
               </label>
               <textarea
                 rows={3}
-                value={generalSettings.notes}
+                value={generalSettings.notes || ''}
                 onChange={(e) => setGeneralSettings({ ...generalSettings, notes: e.target.value })}
                 className="w-full px-3 py-2 text-sm border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
               />

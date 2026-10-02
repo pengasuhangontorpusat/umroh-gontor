@@ -8,7 +8,11 @@ interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
 }
 
 const Input = forwardRef<HTMLInputElement, InputProps>(
-  ({ className, label, error, hint, id, ...props }, ref) => {
+  ({ className, label, error, hint, id, value, defaultValue, ...props }, ref) => {
+    // If defaultValue is provided, it's an uncontrolled input
+    // Otherwise, ensure value is never undefined so React doesn't switch from uncontrolled to controlled
+    const resolvedValue = defaultValue !== undefined ? undefined : (value ?? '')
+
     return (
       <div className="flex flex-col gap-1.5">
         {label && (
@@ -25,6 +29,8 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
         <input
           ref={ref}
           id={id}
+          value={resolvedValue}
+          defaultValue={defaultValue}
           className={cn(
             'h-[44px] w-full rounded-[var(--radius-md)] border border-slate-300 bg-white px-3 text-sm text-slate-900 font-medium placeholder:text-slate-400 shadow-xs',
             'transition-colors focus:outline-none focus:border-emerald-700 focus:ring-1 focus:ring-emerald-700',
