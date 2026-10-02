@@ -18,6 +18,11 @@ import {
   FileCode,
   Check,
   Loader2,
+  FolderArchive,
+  Download,
+  ShieldAlert,
+  FileSpreadsheet,
+  Archive,
 } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
@@ -80,7 +85,7 @@ const INITIAL_BANK_ACCOUNTS = [
 ]
 
 export default function MasterSettingsPage() {
-  const [activeTab, setActiveTab] = useState<'departure' | 'packages' | 'banks' | 'drive' | 'general'>('departure')
+  const [activeTab, setActiveTab] = useState<'departure' | 'packages' | 'banks' | 'drive' | 'general' | 'season'>('departure')
   
   // Data states
   const [departurePoints, setDeparturePoints] = useState(INITIAL_DEPARTURE_POINTS)
@@ -94,6 +99,23 @@ export default function MasterSettingsPage() {
     contactEmail: 'umrah100@gontor.ac.id',
     notes: 'Pendaftaran gelombang 1 dibuka sampai kuota 1.000 jamaah terpenuhi.',
   })
+
+  // Season & Tutup Buku State
+  const [seasonStats, setSeasonStats] = useState({
+    totalGroups: 0,
+    totalJamaahs: 0,
+    totalPayments: 0,
+    activePackages: 0,
+    registrationOpen: true,
+    notes: '',
+  })
+  const [loadingStats, setLoadingStats] = useState(false)
+  const [isCloseModalOpen, setIsCloseModalOpen] = useState(false)
+  const [closeConfirmationText, setCloseConfirmationText] = useState('')
+  const [isClosingSeason, setIsClosingSeason] = useState(false)
+  const [deactivatePackagesOption, setDeactivatePackagesOption] = useState(true)
+  const [closeRegistrationOption, setCloseRegistrationOption] = useState(true)
+  const [isDeactivatingPkgs, setIsDeactivatingPkgs] = useState(false)
 
   // Google Drive state
   const [driveConfig, setDriveConfig] = useState({
@@ -188,7 +210,85 @@ export default function MasterSettingsPage() {
         }
       })
       .catch((err) => console.error('Fetch banks failed:', err))
+
+    fetch('/api/admin/season/stats')
+      .then((res) => res.json())
+      .then((data) => {
+        if (!data.error) setSeasonStats(data)
+      })
+      .catch((err) => console.error('Fetch season stats failed:', err))
   }, [])
+
+  const fetchSeasonStats = () => {
+    setLoadingStats(true)
+    fetch('/api/admin/season/stats')
+      .then((res) => res.json())
+      .then((data) => {
+        if (!data.error) setSeasonStats(data)
+      })
+      .catch((err) => console.error('Fetch season stats failed:', err))
+      .finally(() => setLoadingStats(false))
+  }
+
+  const handleDeactivateAllPackages = async () => {
+    if (!confirm('Apakah Anda yakin ingin menonaktifkan seluruh paket aktif saat ini? Paket akan diarsipkan dan tidak akan muncul di formulir pendaftaran baru.')) return
+    setIsDeactivatingPkgs(true)
+    try {
+      // Loop over active packages and update them to inactive
+      const activePkgs = packages.filter((p) => p.isActive)
+      for (const p of activePkgs) {
+        await fetch('/api/admin/settings/packages', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: p.id, is_active: false }),
+        })
+      }
+      setPackages((prev) => prev.map((p) => ({ ...p, isActive: false })))
+      fetchSeasonStats()
+      triggerSaveNotification()
+      alert('Semua paket berhasil dinonaktifkan dan tersimpan sebagai arsip historis.')
+    } catch {
+      alert('Terjadi kesalahan jaringan saat menonaktifkan paket.')
+    } finally {
+      setIsDeactivatingPkgs(false)
+    }
+  }
+
+  const handleExecuteSeasonClose = async () => {
+    if (closeConfirmationText !== 'TUTUP BUKU') return
+    setIsClosingSeason(true)
+    try {
+      const res = await fetch('/api/admin/season/close', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          confirmation: closeConfirmationText,
+          deactivatePackages: deactivatePackagesOption,
+          closeRegistration: closeRegistrationOption,
+        }),
+      })
+
+      const data = await res.json()
+      if (res.ok) {
+        setIsCloseModalOpen(false)
+        setCloseConfirmationText('')
+        fetchSeasonStats()
+        if (deactivatePackagesOption) {
+          setPackages((prev) => prev.map((p) => ({ ...p, isActive: false })))
+        }
+        if (closeRegistrationOption) {
+          setGeneralSettings((prev) => ({ ...prev, registrationOpen: false }))
+        }
+        alert(data.message || 'Tutup buku berhasil! Database pendaftaran jamaah telah dikosongkan untuk musim berikutnya.')
+      } else {
+        alert(data.error || 'Gagal melakukan tutup buku.')
+      }
+    } catch {
+      alert('Terjadi kesalahan jaringan saat proses tutup buku.')
+    } finally {
+      setIsClosingSeason(false)
+    }
+  }
 
   // Modals
   const [isAddDepartureOpen, setIsAddDepartureOpen] = useState(false)
@@ -620,6 +720,21 @@ export default function MasterSettingsPage() {
         >
           <Sliders className="w-4 h-4" />
           Parameter Pendaftaran
+        </button>
+
+        <button
+          onClick={() => {
+            setActiveTab('season')
+            fetchSeasonStats()
+          }}
+          className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+            activeTab === 'season'
+              ? 'border-red-600 text-red-600 font-semibold'
+              : 'border-transparent text-[var(--text-secondary)] hover:text-red-600'
+          }`}
+        >
+          <FolderArchive className="w-4 h-4" />
+          Tutup Buku (Reset Musim)
         </button>
       </div>
 
@@ -1071,6 +1186,178 @@ export default function MasterSettingsPage() {
         </div>
       )}
 
+      {/* TAB 6: TUTUP BUKU & MANAJEMEN MUSIM */}
+      {activeTab === 'season' && (
+        <div className="space-y-6">
+          {/* Header Card */}
+          <div className="bg-white border border-[var(--border)] rounded-xl p-5 shadow-xs">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <div>
+                <h2 className="text-lg font-bold text-[var(--text-primary)] flex items-center gap-2">
+                  <FolderArchive className="w-5 h-5 text-[var(--primary)]" />
+                  Tutup Buku & Persiapan Musim Umrah Baru
+                </h2>
+                <p className="text-xs text-[var(--text-secondary)] mt-1 max-w-2xl leading-relaxed">
+                  Fitur ini digunakan saat seluruh rangkaian umrah tahunan Pondok telah selesai. Anda dapat mendokumentasikan/mengarsipkan data jamaah, menonaktifkan paket umrah lama, dan mengosongkan database pendaftaran untuk memulai periode umrah berikutnya.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={fetchSeasonStats}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-[var(--border)] bg-white hover:bg-[var(--surface)] transition-colors text-[var(--text-secondary)]"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${loadingStats ? 'animate-spin' : ''}`} />
+                  Segarkan Data
+                </button>
+              </div>
+            </div>
+
+            {/* Quick Stat Pill Grid */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4 pt-4 border-t border-[var(--border)]">
+              <div className="p-3 bg-[var(--surface)] rounded-lg border border-[var(--border)]">
+                <span className="text-[11px] text-[var(--text-muted)] block">Total Rombongan</span>
+                <span className="text-lg font-bold text-[var(--text-primary)]">{seasonStats.totalGroups} Rombongan</span>
+              </div>
+              <div className="p-3 bg-[var(--surface)] rounded-lg border border-[var(--border)]">
+                <span className="text-[11px] text-[var(--text-muted)] block">Total Jamaah Terdaftar</span>
+                <span className="text-lg font-bold text-[var(--text-primary)]">{seasonStats.totalJamaahs} Jamaah</span>
+              </div>
+              <div className="p-3 bg-[var(--surface)] rounded-lg border border-[var(--border)]">
+                <span className="text-[11px] text-[var(--text-muted)] block">Paket Aktif Musim Ini</span>
+                <span className="text-lg font-bold text-[var(--text-primary)]">{seasonStats.activePackages} Paket</span>
+              </div>
+              <div className="p-3 bg-[var(--surface)] rounded-lg border border-[var(--border)]">
+                <span className="text-[11px] text-[var(--text-muted)] block">Status Pendaftaran Publik</span>
+                <span className={`inline-flex items-center gap-1 text-xs font-semibold mt-1 px-2 py-0.5 rounded-full border ${
+                  generalSettings.registrationOpen ? 'bg-emerald-50 text-emerald-800 border-emerald-200' : 'bg-rose-50 text-rose-800 border-rose-200'
+                }`}>
+                  {generalSettings.registrationOpen ? 'Sedang Dibuka' : 'Sedang Ditutup'}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Step 1 & 2: Arsip & Dokumentasi */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            {/* Card Arsip Data */}
+            <div className="bg-white border border-[var(--border)] rounded-xl p-5 shadow-xs space-y-4">
+              <div className="flex items-center gap-2 text-emerald-800 font-bold text-sm">
+                <Download className="w-4 h-4 text-emerald-700" />
+                Langkah 1: Unduh Arsip & Dokumentasi Data Musim Ini
+              </div>
+              <p className="text-xs text-[var(--text-secondary)] leading-relaxed">
+                Sebelum database dikosongkan, pastikan seluruh data pendaftar dan berkas telah diunduh sebagai arsip resmi panitia agar tidak ada data yang hilang.
+              </p>
+
+              <div className="space-y-2 pt-2">
+                <a
+                  href="/api/admin/season/backup"
+                  download
+                  className="w-full inline-flex items-center justify-between px-3.5 py-2.5 rounded-lg border border-emerald-300 bg-emerald-50/60 hover:bg-emerald-100 text-emerald-900 text-xs font-semibold transition-colors"
+                >
+                  <span className="flex items-center gap-2">
+                    <Archive className="w-4 h-4 text-emerald-700" />
+                    Download Arsip Lengkap Musim Ini (.JSON Backup)
+                  </span>
+                  <Download className="w-3.5 h-3.5" />
+                </a>
+
+                <a
+                  href="/api/admin/manifest?format=xlsx"
+                  download
+                  className="w-full inline-flex items-center justify-between px-3.5 py-2.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-800 text-xs font-medium transition-colors"
+                >
+                  <span className="flex items-center gap-2">
+                    <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
+                    Download Manifes Keberangkatan (.XLSX Excel)
+                  </span>
+                  <Download className="w-3.5 h-3.5 text-slate-400" />
+                </a>
+              </div>
+            </div>
+
+            {/* Card Pengarsipan Paket */}
+            <div className="bg-white border border-[var(--border)] rounded-xl p-5 shadow-xs space-y-4">
+              <div className="flex items-center gap-2 text-blue-800 font-bold text-sm">
+                <Layers className="w-4 h-4 text-blue-700" />
+                Langkah 2: Dokumentasi & Nonaktifkan Paket Umrah Lama
+              </div>
+              <p className="text-xs text-[var(--text-secondary)] leading-relaxed">
+                Paket-paket umrah tahun ini dapat dinonaktifkan sehingga <strong>tetap terdokumentasikan dalam database</strong> (sebagai data historis), namun tidak akan muncul lagi di formulir pendaftaran untuk musim baru.
+              </p>
+
+              <div className="pt-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleDeactivateAllPackages}
+                  disabled={isDeactivatingPkgs || seasonStats.activePackages === 0}
+                  className="w-full text-xs"
+                >
+                  {isDeactivatingPkgs ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" />
+                      Memproses...
+                    </>
+                  ) : (
+                    <>
+                      <Layers className="w-3.5 h-3.5 mr-1.5 text-blue-600" />
+                      Nonaktifkan Semua Paket Aktif Saat Ini ({seasonStats.activePackages} Paket)
+                    </>
+                  )}
+                </Button>
+                <p className="text-[11px] text-[var(--text-muted)] mt-1.5 text-center">
+                  Paket baru untuk musim depan dapat ditambahkan kapan saja di tab <strong>Paket & Tipe Kamar</strong>.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Danger Zone: Tutup Buku & Kosongkan Database Jamaah */}
+          <div className="bg-red-50/50 border-2 border-red-200 rounded-xl p-5 space-y-4 shadow-xs">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center shrink-0 text-red-600">
+                <ShieldAlert className="w-5 h-5" />
+              </div>
+              <div className="space-y-1">
+                <h3 className="text-base font-bold text-red-950">
+                  Langkah 3: Zona Eksekusi Tutup Buku (Reset Database Jamaah)
+                </h3>
+                <p className="text-xs text-red-800 leading-relaxed">
+                  Tindakan ini akan <strong>mengosongkan seluruh data pendaftaran kelompok, data jamaah, berkas dokumen, dan catatan pembayaran</strong> periode saat ini. Nomor urut pendaftaran akan di-reset kembali ke 0001 untuk persiapan musim baru.
+                </p>
+              </div>
+            </div>
+
+            <div className="p-3 bg-white rounded-lg border border-red-200 text-xs space-y-2 text-slate-700">
+              <p className="font-semibold text-red-900">
+                Data yang akan dibersihkan:
+              </p>
+              <ul className="list-disc list-inside space-y-1 text-[11px] text-slate-600">
+                <li>{seasonStats.totalGroups} data rombongan/kelompok pendaftaran</li>
+                <li>{seasonStats.totalJamaahs} data lengkap jamaah</li>
+                <li>Seluruh berkas dokumen lampiran (KTP, KK, Paspor, Vaksin)</li>
+                <li>{seasonStats.totalPayments} catatan verifikasi pembayaran</li>
+                <li>Pengaturan pendaftaran publik otomatis dialihkan ke status <strong>TUTUP</strong></li>
+              </ul>
+            </div>
+
+            <div className="flex justify-end pt-2">
+              <button
+                type="button"
+                onClick={() => setIsCloseModalOpen(true)}
+                className="inline-flex items-center gap-2 px-4 py-2 text-xs font-bold text-white bg-red-600 hover:bg-red-700 rounded-lg shadow-sm transition-colors cursor-pointer"
+              >
+                <Trash2 className="w-4 h-4" />
+                Mulai Proses Tutup Buku & Kosongkan Database
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* MODAL: Tambah Titik Keberangkatan */}
       <Modal
         isOpen={isAddDepartureOpen}
@@ -1194,6 +1481,103 @@ export default function MasterSettingsPage() {
               Batal
             </Button>
             <Button onClick={handleAddBank}>Simpan Rekening</Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* MODAL: Konfirmasi Tutup Buku */}
+      <Modal
+        isOpen={isCloseModalOpen}
+        onClose={() => {
+          if (!isClosingSeason) {
+            setIsCloseModalOpen(false)
+            setCloseConfirmationText('')
+          }
+        }}
+        title="Konfirmasi Tutup Buku & Reset Database"
+      >
+        <div className="space-y-4">
+          <div className="p-3.5 bg-red-50 rounded-lg border border-red-200 text-red-900 text-xs space-y-2">
+            <p className="font-bold flex items-center gap-1.5 text-red-950">
+              <AlertCircle className="w-4 h-4 text-red-700" />
+              Peringatan Keamanan Database
+            </p>
+            <p className="leading-relaxed">
+              Anda akan mengosongkan seluruh database pendaftaran ({seasonStats.totalJamaahs} jamaah dalam {seasonStats.totalGroups} rombongan). Tindakan ini permanen dan tidak dapat dibatalkan.
+            </p>
+          </div>
+
+          <div className="space-y-2 text-xs">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={deactivatePackagesOption}
+                onChange={(e) => setDeactivatePackagesOption(e.target.checked)}
+                className="rounded border-slate-300 text-[var(--primary)]"
+              />
+              <span className="text-[var(--text-secondary)]">
+                Nonaktifkan semua paket kamar yang aktif saat ini (agar terdokumentasi di arsip)
+              </span>
+            </label>
+
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={closeRegistrationOption}
+                onChange={(e) => setCloseRegistrationOption(e.target.checked)}
+                className="rounded border-slate-300 text-[var(--primary)]"
+              />
+              <span className="text-[var(--text-secondary)]">
+                Tutup formulir pendaftaran publik secara otomatis
+              </span>
+            </label>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-[var(--text-primary)] mb-1">
+              Untuk mengonfirmasi, ketik persis kata berikut:{' '}
+              <span className="font-mono text-red-600 bg-red-50 px-1.5 py-0.5 rounded border border-red-200">
+                TUTUP BUKU
+              </span>
+            </label>
+            <input
+              type="text"
+              placeholder="Ketik TUTUP BUKU"
+              value={closeConfirmationText}
+              onChange={(e) => setCloseConfirmationText(e.target.value)}
+              className="w-full px-3 py-2 text-xs font-mono font-bold border border-red-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 uppercase"
+            />
+          </div>
+
+          <div className="flex justify-end gap-2 pt-2 border-t border-[var(--border)]">
+            <Button
+              variant="ghost"
+              onClick={() => {
+                setIsCloseModalOpen(false)
+                setCloseConfirmationText('')
+              }}
+              disabled={isClosingSeason}
+            >
+              Batal
+            </Button>
+            <button
+              type="button"
+              onClick={handleExecuteSeasonClose}
+              disabled={closeConfirmationText !== 'TUTUP BUKU' || isClosingSeason}
+              className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-white bg-red-600 hover:bg-red-700 disabled:opacity-40 disabled:cursor-not-allowed rounded-lg shadow-sm transition-colors cursor-pointer"
+            >
+              {isClosingSeason ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  Mengosongkan Database...
+                </>
+              ) : (
+                <>
+                  <Trash2 className="w-3.5 h-3.5" />
+                  Ya, Eksekusi Tutup Buku
+                </>
+              )}
+            </button>
           </div>
         </div>
       </Modal>

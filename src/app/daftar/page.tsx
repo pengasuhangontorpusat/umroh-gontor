@@ -12,6 +12,9 @@ import { Step7Success } from '@/components/registration/Step7Success'
 import Link from 'next/link'
 import { ChevronLeft, RotateCcw } from 'lucide-react'
 
+import { useState, useEffect } from 'react'
+import { AlertCircle, Clock, Search, Home } from 'lucide-react'
+
 const STEPS = [
   { id: 1, label: 'Jenis' },
   { id: 2, label: 'Data' },
@@ -25,9 +28,71 @@ export default function DaftarPage() {
   const { draft, hasRestoredDraft, dismissRestoredNotice, clearDraftAndReset } = useRegistration()
   const { step } = draft
 
+  const [isRegistrationOpen, setIsRegistrationOpen] = useState<boolean | null>(null)
+  const [closedNotes, setClosedNotes] = useState<string>('')
+
+  useEffect(() => {
+    fetch('/api/admin/settings/general')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.parameters) {
+          setIsRegistrationOpen(data.parameters.registrationOpen ?? true)
+          setClosedNotes(data.parameters.notes || '')
+        } else {
+          setIsRegistrationOpen(true)
+        }
+      })
+      .catch(() => setIsRegistrationOpen(true))
+  }, [])
+
   // Success page - no wizard chrome
   if (step === 7) {
     return <Step7Success />
+  }
+
+  // Registration closed notice
+  if (isRegistrationOpen === false) {
+    return (
+      <div className="min-h-screen bg-[var(--surface)] flex flex-col justify-center items-center px-4 py-12">
+        <div className="max-w-md w-full bg-white border border-[var(--border)] rounded-2xl shadow-sm p-6 sm:p-8 text-center space-y-4">
+          <div className="w-16 h-16 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center mx-auto">
+            <Clock className="w-8 h-8" />
+          </div>
+
+          <div className="space-y-1">
+            <span className="text-xs font-semibold uppercase tracking-wider text-amber-800 bg-amber-50 px-2.5 py-0.5 rounded-full border border-amber-200">
+              Pendaftaran Ditutup
+            </span>
+            <h1 className="text-xl sm:text-2xl font-bold text-[var(--text-primary)] pt-1">
+              Pendaftaran Umrah Belum Dibuka
+            </h1>
+          </div>
+
+          <p className="text-sm text-[var(--text-secondary)] leading-relaxed">
+            {closedNotes ||
+              'Alhamdulillah rentetan pelaksanaan umrah periode ini telah selesai dan saat ini sistem sedang dalam persiapan untuk musim umrah berikutnya. Jadwal, paket, dan pembukaan pendaftaran baru akan diumumkan secara resmi oleh Pondok Modern Darussalam Gontor.'}
+          </p>
+
+          <div className="pt-4 border-t border-[var(--border)] flex flex-col gap-2">
+            <Link
+              href="/status"
+              className="w-full inline-flex items-center justify-center gap-2 h-10 px-4 text-sm font-semibold rounded-lg bg-[var(--primary)] text-white hover:bg-[var(--primary-hover)] transition-colors shadow-xs"
+            >
+              <Search className="w-4 h-4" />
+              Cek Status / Riwayat Pendaftaran
+            </Link>
+
+            <Link
+              href="/"
+              className="w-full inline-flex items-center justify-center gap-2 h-10 px-4 text-sm font-medium rounded-lg border border-[var(--border)] bg-white text-[var(--text-secondary)] hover:bg-[var(--surface)] transition-colors"
+            >
+              <Home className="w-4 h-4" />
+              Kembali ke Beranda
+            </Link>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (
