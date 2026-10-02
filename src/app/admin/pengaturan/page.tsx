@@ -23,10 +23,60 @@ import {
   ShieldAlert,
   FileSpreadsheet,
   Archive,
+  FileText,
+  Edit2,
+  Globe,
+  Building2,
+  Phone,
+  Mail,
 } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Modal } from '@/components/ui/Modal'
+
+export interface DocumentRequirement {
+  id: string
+  name: string
+  description: string
+  icon: string
+  isRequired: boolean
+  isActive: boolean
+}
+
+export const DEFAULT_DOCS: DocumentRequirement[] = [
+  {
+    id: 'ktp',
+    name: 'KTP (Kartu Tanda Penduduk)',
+    description: 'Wajib untuk jamaah usia 17 tahun ke atas',
+    icon: '📄',
+    isRequired: true,
+    isActive: true,
+  },
+  {
+    id: 'kk',
+    name: 'Kartu Keluarga',
+    description: 'Untuk semua anggota rombongan/keluarga',
+    icon: '📋',
+    isRequired: true,
+    isActive: true,
+  },
+  {
+    id: 'vaksin',
+    name: 'Kartu Vaksin Meningitis & Polio',
+    description: 'Dapat dikoordinasikan dengan panitia',
+    icon: '💉',
+    isRequired: false,
+    isActive: true,
+  },
+  {
+    id: 'paspor',
+    name: 'Buku Paspor',
+    description: 'Jika belum memiliki, dapat ditandai dan dilengkapi kemudian',
+    icon: '📘',
+    isRequired: false,
+    isActive: true,
+  },
+]
 
 // Default mock data for master items
 const INITIAL_DEPARTURE_POINTS = [
@@ -85,19 +135,32 @@ const INITIAL_BANK_ACCOUNTS = [
 ]
 
 export default function MasterSettingsPage() {
-  const [activeTab, setActiveTab] = useState<'departure' | 'packages' | 'banks' | 'drive' | 'general' | 'season'>('departure')
+  const [activeTab, setActiveTab] = useState<'departure' | 'packages' | 'banks' | 'documents' | 'drive' | 'general' | 'season'>('departure')
   
   // Data states
   const [departurePoints, setDeparturePoints] = useState(INITIAL_DEPARTURE_POINTS)
   const [packages, setPackages] = useState(INITIAL_PACKAGES)
   const [bankAccounts, setBankAccounts] = useState(INITIAL_BANK_ACCOUNTS)
   const [generalSettings, setGeneralSettings] = useState({
+    // Branding & Landing Page
+    siteTitle: 'Umrah 100 Tahun Gontor',
+    siteSubtitle:
+      'Daftarkan diri Anda atau keluarga untuk program umrah dalam rangka peringatan 100 tahun Pondok Modern Darussalam Gontor. Proses pendaftaran dirancang sesederhana mungkin.',
+    heroBadge: 'Pendaftaran Resmi',
+    brandLogoText: 'G',
+    // Footer & Organization
+    footerTitle: 'Panitia Umrah 100 Tahun Gontor',
+    footerSubtitle: 'Pondok Modern Darussalam Gontor',
+    footerCopyright: `© ${new Date().getFullYear()}`,
+    // Operations & Contact
     registrationOpen: true,
     totalQuota: 1000,
     dpMinimum: 5000000,
     helpdeskWhatsapp: '081234567890',
-    contactEmail: 'umrah100@gontor.ac.id',
+    contactEmail: 'umrah@gontor.ac.id',
     notes: 'Pendaftaran gelombang 1 dibuka sampai kuota 1.000 jamaah terpenuhi.',
+    // Flexible Document Requirements
+    documentRequirements: DEFAULT_DOCS,
   })
 
   // Season & Tutup Buku State
@@ -324,6 +387,18 @@ export default function MasterSettingsPage() {
     accountNumber: '',
     accountHolder: '',
   })
+
+  // Document Requirement Modals
+  const [isAddDocOpen, setIsAddDocOpen] = useState(false)
+  const [newDoc, setNewDoc] = useState({
+    name: '',
+    description: '',
+    icon: '📄',
+    isRequired: true,
+    isActive: true,
+  })
+  const [isEditDocOpen, setIsEditDocOpen] = useState(false)
+  const [editingDoc, setEditingDoc] = useState<DocumentRequirement | null>(null)
 
   const triggerSaveNotification = () => {
     setSaveSuccess(true)
@@ -555,26 +630,83 @@ export default function MasterSettingsPage() {
   }
 
   // General Settings Handler
-  const handleSaveGeneralSettings = async () => {
+  const handleSaveGeneralSettings = async (override?: typeof generalSettings, showSuccessAlert = true) => {
     setIsSavingGeneral(true)
+    const toSave = override || generalSettings
     try {
       const res = await fetch('/api/admin/settings/general', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(generalSettings),
+        body: JSON.stringify(toSave),
       })
       const data = await res.json()
       if (res.ok) {
         triggerSaveNotification()
-        alert('Parameter pendaftaran berhasil disimpan ke database!')
+        if (showSuccessAlert) {
+          alert('Pengaturan berhasil disimpan ke database!')
+        }
+        return true
       } else {
-        alert(data.error || 'Gagal menyimpan parameter.')
+        alert(data.error || 'Gagal menyimpan pengaturan.')
+        return false
       }
     } catch {
       alert('Terjadi kesalahan jaringan.')
+      return false
     } finally {
       setIsSavingGeneral(false)
     }
+  }
+
+  // Document Requirements Handlers
+  const handleAddDoc = async () => {
+    if (!newDoc.name.trim()) {
+      alert('Nama berkas persyaratan wajib diisi!')
+      return
+    }
+    const docItem: DocumentRequirement = {
+      id: 'doc_' + Date.now(),
+      name: newDoc.name.trim(),
+      description: newDoc.description.trim(),
+      icon: newDoc.icon || '📄',
+      isRequired: Boolean(newDoc.isRequired),
+      isActive: Boolean(newDoc.isActive),
+    }
+    const updatedList = [...(generalSettings.documentRequirements || []), docItem]
+    const nextSettings = { ...generalSettings, documentRequirements: updatedList }
+    setGeneralSettings(nextSettings)
+    setIsAddDocOpen(false)
+    setNewDoc({ name: '', description: '', icon: '📄', isRequired: true, isActive: true })
+    await handleSaveGeneralSettings(nextSettings, false)
+  }
+
+  const handleToggleDoc = async (id: string) => {
+    const updatedList = (generalSettings.documentRequirements || []).map((d) =>
+      d.id === id ? { ...d, isActive: !d.isActive } : d
+    )
+    const nextSettings = { ...generalSettings, documentRequirements: updatedList }
+    setGeneralSettings(nextSettings)
+    await handleSaveGeneralSettings(nextSettings, false)
+  }
+
+  const handleDeleteDoc = async (id: string) => {
+    if (!confirm('Apakah Anda yakin ingin menghapus persyaratan berkas ini?')) return
+    const updatedList = (generalSettings.documentRequirements || []).filter((d) => d.id !== id)
+    const nextSettings = { ...generalSettings, documentRequirements: updatedList }
+    setGeneralSettings(nextSettings)
+    await handleSaveGeneralSettings(nextSettings, false)
+  }
+
+  const handleSaveEditDoc = async () => {
+    if (!editingDoc || !editingDoc.name.trim()) return
+    const updatedList = (generalSettings.documentRequirements || []).map((d) =>
+      d.id === editingDoc.id ? editingDoc : d
+    )
+    const nextSettings = { ...generalSettings, documentRequirements: updatedList }
+    setGeneralSettings(nextSettings)
+    setIsEditDocOpen(false)
+    setEditingDoc(null)
+    await handleSaveGeneralSettings(nextSettings, false)
   }
 
   // Google Drive Handlers
@@ -714,6 +846,18 @@ export default function MasterSettingsPage() {
         </button>
 
         <button
+          onClick={() => setActiveTab('documents')}
+          className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+            activeTab === 'documents'
+              ? 'border-[var(--primary)] text-[var(--primary)]'
+              : 'border-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+          }`}
+        >
+          <FileText className="w-4 h-4" />
+          Persyaratan Berkas ({generalSettings.documentRequirements?.filter((d) => d.isActive !== false).length || 0})
+        </button>
+
+        <button
           onClick={() => setActiveTab('drive')}
           className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
             activeTab === 'drive'
@@ -734,7 +878,7 @@ export default function MasterSettingsPage() {
           }`}
         >
           <Sliders className="w-4 h-4" />
-          Parameter Pendaftaran
+          Identitas & Parameter Web
         </button>
 
         <button
@@ -1199,22 +1343,278 @@ export default function MasterSettingsPage() {
         </div>
       )}
 
-      {/* TAB 4: GENERAL PARAMETERS */}
+      {/* TAB: PERSYARATAN BERKAS DOKUMEN */}
+      {activeTab === 'documents' && (
+        <div className="space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-white border border-[var(--border)] rounded-xl p-5 shadow-xs">
+            <div>
+              <h2 className="text-lg font-bold text-[var(--text-primary)] flex items-center gap-2">
+                <FileText className="w-5 h-5 text-[var(--primary)]" />
+                Persyaratan Berkas Dokumen Jamaah
+              </h2>
+              <p className="text-xs text-[var(--text-secondary)] mt-1 max-w-2xl leading-relaxed">
+                Atur seluruh berkas yang wajib atau opsional diunggah oleh calon jamaah. Daftar berkas yang aktif di sini akan <strong>langsung tampil secara otomatis dan fleksibel pada halaman awal (landing page)</strong> serta formulir pendaftaran.
+              </p>
+            </div>
+            <Button
+              onClick={() => {
+                setNewDoc({
+                  name: '',
+                  description: '',
+                  icon: '📄',
+                  isRequired: true,
+                  isActive: true,
+                })
+                setIsAddDocOpen(true)
+              }}
+              size="sm"
+              className="shrink-0"
+            >
+              <Plus className="w-4 h-4 mr-1.5" />
+              Tambah Berkas Baru
+            </Button>
+          </div>
+
+          {/* Document list cards */}
+          {(!generalSettings.documentRequirements || generalSettings.documentRequirements.length === 0) ? (
+            <div className="p-8 text-center bg-white border border-[var(--border)] rounded-xl space-y-3">
+              <FileText className="w-10 h-10 text-slate-300 mx-auto" />
+              <p className="text-sm font-medium text-slate-700">Belum ada berkas persyaratan yang didaftarkan.</p>
+              <Button size="sm" onClick={() => setIsAddDocOpen(true)}>
+                <Plus className="w-4 h-4 mr-1.5" /> Tambah Berkas Sekarang
+              </Button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {generalSettings.documentRequirements.map((doc) => (
+                <div
+                  key={doc.id}
+                  className={`bg-white border rounded-xl p-5 shadow-xs transition-all flex flex-col justify-between ${
+                    doc.isActive ? 'border-[var(--border)]' : 'border-dashed border-slate-200 opacity-60 bg-slate-50/50'
+                  }`}
+                >
+                  <div className="space-y-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-center gap-3">
+                        <div className="w-11 h-11 rounded-lg bg-emerald-50 border border-emerald-100 flex items-center justify-center text-2xl shrink-0">
+                          {doc.icon || '📄'}
+                        </div>
+                        <div>
+                          <h3 className="text-sm font-bold text-[var(--text-primary)] leading-snug">
+                            {doc.name}
+                          </h3>
+                          <div className="flex items-center gap-2 mt-1">
+                            <span
+                              className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
+                                doc.isRequired
+                                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                  : 'bg-slate-100 text-slate-600 border border-slate-200'
+                              }`}
+                            >
+                              {doc.isRequired ? 'Wajib' : 'Opsional / Menyusul'}
+                            </span>
+                            <span
+                              className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${
+                                doc.isActive
+                                  ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                                  : 'bg-rose-50 text-rose-700 border border-rose-200'
+                              }`}
+                            >
+                              {doc.isActive ? 'Aktif Tampil' : 'Nonaktif'}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Switch Active */}
+                      <button
+                        type="button"
+                        onClick={() => handleToggleDoc(doc.id)}
+                        title={doc.isActive ? 'Nonaktifkan berkas' : 'Aktifkan berkas'}
+                        className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors ${
+                          doc.isActive ? 'bg-[var(--primary)]' : 'bg-slate-300'
+                        }`}
+                      >
+                        <span
+                          className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
+                            doc.isActive ? 'translate-x-4' : 'translate-x-1'
+                          }`}
+                        />
+                      </button>
+                    </div>
+
+                    <p className="text-xs text-[var(--text-secondary)] leading-relaxed pl-14">
+                      {doc.description || 'Tidak ada catatan panduan.'}
+                    </p>
+                  </div>
+
+                  <div className="pt-4 mt-4 border-t border-[var(--border)] flex items-center justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditingDoc(doc)
+                        setIsEditDocOpen(true)
+                      }}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-md text-[var(--text-secondary)] hover:text-[var(--primary)] hover:bg-[var(--surface)] transition-colors"
+                    >
+                      <Edit2 className="w-3.5 h-3.5" />
+                      Edit
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteDoc(doc.id)}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-md text-red-600 hover:text-red-700 hover:bg-red-50 transition-colors"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      Hapus
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* TAB: IDENTITAS & PARAMETER WEB */}
       {activeTab === 'general' && (
-        <div className="bg-white border border-[var(--border)] rounded-xl p-6 shadow-sm space-y-6 max-w-2xl">
+        <div className="bg-white border border-[var(--border)] rounded-xl p-6 shadow-sm space-y-8 max-w-3xl">
           <div>
-            <h2 className="text-base font-semibold text-[var(--text-primary)]">Parameter Sistem & Kuota Pendaftaran</h2>
-            <p className="text-xs text-[var(--text-secondary)] mt-0.5">
-              Pengaturan operasional portal pendaftaran umrah.
+            <h2 className="text-lg font-bold text-[var(--text-primary)] flex items-center gap-2">
+              <Sliders className="w-5 h-5 text-[var(--primary)]" />
+              Identitas Web, Footer & Parameter Pendaftaran
+            </h2>
+            <p className="text-xs text-[var(--text-secondary)] mt-1">
+              Sesuaikan teks judul, badge, deskripsi hero beranda, informasi footer, kontak bantuan, dan kontrol pendaftaran.
             </p>
           </div>
 
+          {/* Section 1: Landing Page Branding & Hero */}
+          <div className="space-y-4 pt-2">
+            <div className="flex items-center gap-2 text-sm font-semibold text-[var(--text-primary)] border-b border-[var(--border)] pb-2">
+              <Globe className="w-4 h-4 text-[var(--primary)]" />
+              Identitas Beranda & Hero Banner Utama
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="sm:col-span-2">
+                <Input
+                  label="Judul Web & Hero Utama"
+                  value={generalSettings.siteTitle || ''}
+                  onChange={(e) => setGeneralSettings({ ...generalSettings, siteTitle: e.target.value })}
+                  placeholder="Misal: Umrah 100 Tahun Gontor"
+                />
+              </div>
+              <div>
+                <Input
+                  label="Inisial Logo Header"
+                  value={generalSettings.brandLogoText || ''}
+                  onChange={(e) => setGeneralSettings({ ...generalSettings, brandLogoText: e.target.value })}
+                  placeholder="G"
+                  maxLength={5}
+                />
+              </div>
+            </div>
+
+            <div>
+              <Input
+                label="Badge Pengenal di Atas Judul"
+                value={generalSettings.heroBadge || ''}
+                onChange={(e) => setGeneralSettings({ ...generalSettings, heroBadge: e.target.value })}
+                placeholder="PENDAFTARAN RESMI"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-[var(--text-primary)] mb-1">
+                Deskripsi / Sub-judul Hero Beranda
+              </label>
+              <textarea
+                rows={3}
+                value={generalSettings.siteSubtitle || ''}
+                onChange={(e) => setGeneralSettings({ ...generalSettings, siteSubtitle: e.target.value })}
+                className="w-full px-3 py-2 text-sm border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
+                placeholder="Daftarkan diri Anda atau keluarga untuk program umrah..."
+              />
+            </div>
+          </div>
+
+          {/* Section 2: Footer & Organization */}
           <div className="space-y-4">
+            <div className="flex items-center gap-2 text-sm font-semibold text-[var(--text-primary)] border-b border-[var(--border)] pb-2">
+              <Building2 className="w-4 h-4 text-[var(--primary)]" />
+              Tampilan Footer & Keterangan Lembaga
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <Input
+                label="Nama Panitia di Footer"
+                value={generalSettings.footerTitle || ''}
+                onChange={(e) => setGeneralSettings({ ...generalSettings, footerTitle: e.target.value })}
+                placeholder="Panitia Umrah 100 Tahun Gontor"
+              />
+              <Input
+                label="Nama Lembaga / Keterangan Footer"
+                value={generalSettings.footerSubtitle || ''}
+                onChange={(e) => setGeneralSettings({ ...generalSettings, footerSubtitle: e.target.value })}
+                placeholder="Pondok Modern Darussalam Gontor"
+              />
+            </div>
+
+            <div>
+              <Input
+                label="Teks Hak Cipta (Copyright)"
+                value={generalSettings.footerCopyright || ''}
+                onChange={(e) => setGeneralSettings({ ...generalSettings, footerCopyright: e.target.value })}
+                placeholder="© 2026"
+              />
+            </div>
+          </div>
+
+          {/* Section 3: Contact & Helpdesk */}
+          <div className="space-y-4">
+            <div className="flex items-center gap-2 text-sm font-semibold text-[var(--text-primary)] border-b border-[var(--border)] pb-2">
+              <Phone className="w-4 h-4 text-[var(--primary)]" />
+              Kontak Bantuan & Helpdesk Panitia
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <Input
+                  label="Nomor WhatsApp Panitia"
+                  type="tel"
+                  value={generalSettings.helpdeskWhatsapp || ''}
+                  onChange={(e) => setGeneralSettings({ ...generalSettings, helpdeskWhatsapp: e.target.value })}
+                  placeholder="081234567890"
+                />
+                <p className="text-[11px] text-[var(--text-muted)] mt-1">
+                  Format angka Indonesia (misal: 081234567890). Sistem otomatis membuat tautan chat wa.me.
+                </p>
+              </div>
+              <div>
+                <Input
+                  label="Email Bantuan Resmi"
+                  type="email"
+                  value={generalSettings.contactEmail || ''}
+                  onChange={(e) => setGeneralSettings({ ...generalSettings, contactEmail: e.target.value })}
+                  placeholder="umrah@gontor.ac.id"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Section 4: Operational Parameters */}
+          <div className="space-y-4">
+            <div className="flex items-center gap-2 text-sm font-semibold text-[var(--text-primary)] border-b border-[var(--border)] pb-2">
+              <Sliders className="w-4 h-4 text-[var(--primary)]" />
+              Parameter Operasional Sistem & Kuota
+            </div>
+
             <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg border border-[var(--border)]">
               <div>
                 <p className="text-sm font-semibold text-[var(--text-primary)]">Status Pembukaan Pendaftaran</p>
                 <p className="text-xs text-[var(--text-secondary)]">
-                  Jika dinonaktifkan, formulir pendaftaran baru akan ditutup untuk publik.
+                  Jika dinonaktifkan, calon jamaah tidak dapat mengisi formulir pendaftaran baru.
                 </p>
               </div>
               <button
@@ -1250,43 +1650,29 @@ export default function MasterSettingsPage() {
               />
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <Input
-                label="WhatsApp Customer Care / Panitia"
-                type="tel"
-                value={generalSettings.helpdeskWhatsapp || ''}
-                onChange={(e) => setGeneralSettings({ ...generalSettings, helpdeskWhatsapp: e.target.value })}
-              />
-              <Input
-                label="Email Bantuan"
-                type="email"
-                value={generalSettings.contactEmail || ''}
-                onChange={(e) => setGeneralSettings({ ...generalSettings, contactEmail: e.target.value })}
-              />
-            </div>
-
             <div>
               <label className="block text-xs font-medium text-[var(--text-primary)] mb-1">
-                Pengumuman / Catatan Header Pendaftaran
+                Pengumuman / Catatan Header Pendaftaran (Jika Pendaftaran Ditutup)
               </label>
               <textarea
                 rows={3}
                 value={generalSettings.notes || ''}
                 onChange={(e) => setGeneralSettings({ ...generalSettings, notes: e.target.value })}
                 className="w-full px-3 py-2 text-sm border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
+                placeholder="Pendaftaran musim ini ditutup untuk proses persiapan musim berikutnya..."
               />
             </div>
+          </div>
 
-            <div className="pt-2 flex justify-end">
-              <Button onClick={handleSaveGeneralSettings} disabled={isSavingGeneral}>
-                {isSavingGeneral ? (
-                  <Loader2 className="w-4 h-4 animate-spin mr-1.5" />
-                ) : (
-                  <Save className="w-4 h-4 mr-1.5" />
-                )}
-                Simpan Parameter
-              </Button>
-            </div>
+          <div className="pt-4 border-t border-[var(--border)] flex justify-end">
+            <Button onClick={() => handleSaveGeneralSettings()} disabled={isSavingGeneral} size="lg">
+              {isSavingGeneral ? (
+                <Loader2 className="w-4 h-4 animate-spin mr-1.5" />
+              ) : (
+                <Save className="w-4 h-4 mr-1.5" />
+              )}
+              Simpan Semua Pengaturan Web
+            </Button>
           </div>
         </div>
       )}
@@ -1588,6 +1974,195 @@ export default function MasterSettingsPage() {
             <Button onClick={handleAddBank}>Simpan Rekening</Button>
           </div>
         </div>
+      </Modal>
+
+      {/* MODAL: Tambah Berkas Persyaratan */}
+      <Modal
+        isOpen={isAddDocOpen}
+        onClose={() => setIsAddDocOpen(false)}
+        title="Tambah Persyaratan Berkas Baru"
+      >
+        <div className="space-y-4">
+          <Input
+            label="Nama Berkas / Dokumen"
+            placeholder="Misal: Pas Foto 4x6 Background Putih"
+            value={newDoc.name}
+            onChange={(e) => setNewDoc({ ...newDoc, name: e.target.value })}
+            required
+          />
+
+          <div>
+            <label className="block text-xs font-medium text-[var(--text-primary)] mb-1">
+              Pilih Ikon Emoji
+            </label>
+            <div className="flex items-center gap-1.5 flex-wrap mb-2">
+              {['📄', '📋', '📘', '💉', '📷', '📑', '🏥', '🏢'].map((emo) => (
+                <button
+                  type="button"
+                  key={emo}
+                  onClick={() => setNewDoc({ ...newDoc, icon: emo })}
+                  className={`w-9 h-9 rounded-lg border text-lg flex items-center justify-center transition-all ${
+                    newDoc.icon === emo
+                      ? 'border-[var(--primary)] bg-emerald-50 scale-105 shadow-xs font-bold'
+                      : 'border-slate-200 bg-white hover:bg-slate-50'
+                  }`}
+                >
+                  {emo}
+                </button>
+              ))}
+            </div>
+            <Input
+              placeholder="Atau ketik emoji sendiri (misal: 📇)"
+              value={newDoc.icon}
+              onChange={(e) => setNewDoc({ ...newDoc, icon: e.target.value })}
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-[var(--text-primary)] mb-1">
+              Sifat Berkas
+            </label>
+            <select
+              value={newDoc.isRequired ? 'wajib' : 'opsional'}
+              onChange={(e) => setNewDoc({ ...newDoc, isRequired: e.target.value === 'wajib' })}
+              className="w-full px-3 py-2 text-sm border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--primary)] bg-white"
+            >
+              <option value="wajib">Wajib (Harus dipenuhi / dilampirkan)</option>
+              <option value="opsional">Opsional / Menyusul (Dapat dilengkapi kemudian)</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-[var(--text-primary)] mb-1">
+              Panduan / Keterangan Berkas
+            </label>
+            <textarea
+              rows={2}
+              value={newDoc.description}
+              onChange={(e) => setNewDoc({ ...newDoc, description: e.target.value })}
+              className="w-full px-3 py-2 text-sm border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
+              placeholder="Misal: Foto terbaru dengan fokus wajah 80%, pakaian rapi, background putih..."
+            />
+          </div>
+
+          <label className="flex items-center gap-2 cursor-pointer pt-1">
+            <input
+              type="checkbox"
+              checked={newDoc.isActive}
+              onChange={(e) => setNewDoc({ ...newDoc, isActive: e.target.checked })}
+              className="rounded border-slate-300 text-[var(--primary)]"
+            />
+            <span className="text-xs text-[var(--text-secondary)] font-medium">
+              Langsung aktifkan dan tampilkan di beranda web
+            </span>
+          </label>
+
+          <div className="flex justify-end gap-2 pt-3 border-t border-[var(--border)]">
+            <Button variant="ghost" onClick={() => setIsAddDocOpen(false)}>
+              Batal
+            </Button>
+            <Button onClick={handleAddDoc}>Simpan Berkas</Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* MODAL: Edit Berkas Persyaratan */}
+      <Modal
+        isOpen={isEditDocOpen && !!editingDoc}
+        onClose={() => {
+          setIsEditDocOpen(false)
+          setEditingDoc(null)
+        }}
+        title="Edit Persyaratan Berkas"
+      >
+        {editingDoc && (
+          <div className="space-y-4">
+            <Input
+              label="Nama Berkas / Dokumen"
+              value={editingDoc.name}
+              onChange={(e) => setEditingDoc({ ...editingDoc, name: e.target.value })}
+              required
+            />
+
+            <div>
+              <label className="block text-xs font-medium text-[var(--text-primary)] mb-1">
+                Pilih Ikon Emoji
+              </label>
+              <div className="flex items-center gap-1.5 flex-wrap mb-2">
+                {['📄', '📋', '📘', '💉', '📷', '📑', '🏥', '🏢'].map((emo) => (
+                  <button
+                    type="button"
+                    key={emo}
+                    onClick={() => setEditingDoc({ ...editingDoc, icon: emo })}
+                    className={`w-9 h-9 rounded-lg border text-lg flex items-center justify-center transition-all ${
+                      editingDoc.icon === emo
+                        ? 'border-[var(--primary)] bg-emerald-50 scale-105 shadow-xs font-bold'
+                        : 'border-slate-200 bg-white hover:bg-slate-50'
+                    }`}
+                  >
+                    {emo}
+                  </button>
+                ))}
+              </div>
+              <Input
+                value={editingDoc.icon}
+                onChange={(e) => setEditingDoc({ ...editingDoc, icon: e.target.value })}
+                placeholder="Emoji berkas"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-[var(--text-primary)] mb-1">
+                Sifat Berkas
+              </label>
+              <select
+                value={editingDoc.isRequired ? 'wajib' : 'opsional'}
+                onChange={(e) => setEditingDoc({ ...editingDoc, isRequired: e.target.value === 'wajib' })}
+                className="w-full px-3 py-2 text-sm border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--primary)] bg-white"
+              >
+                <option value="wajib">Wajib (Harus dipenuhi / dilampirkan)</option>
+                <option value="opsional">Opsional / Menyusul (Dapat dilengkapi kemudian)</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-[var(--text-primary)] mb-1">
+                Panduan / Keterangan Berkas
+              </label>
+              <textarea
+                rows={2}
+                value={editingDoc.description}
+                onChange={(e) => setEditingDoc({ ...editingDoc, description: e.target.value })}
+                className="w-full px-3 py-2 text-sm border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
+              />
+            </div>
+
+            <label className="flex items-center gap-2 cursor-pointer pt-1">
+              <input
+                type="checkbox"
+                checked={editingDoc.isActive}
+                onChange={(e) => setEditingDoc({ ...editingDoc, isActive: e.target.checked })}
+                className="rounded border-slate-300 text-[var(--primary)]"
+              />
+              <span className="text-xs text-[var(--text-secondary)] font-medium">
+                Tampilkan di beranda web dan formulir pendaftaran
+              </span>
+            </label>
+
+            <div className="flex justify-end gap-2 pt-3 border-t border-[var(--border)]">
+              <Button
+                variant="ghost"
+                onClick={() => {
+                  setIsEditDocOpen(false)
+                  setEditingDoc(null)
+                }}
+              >
+                Batal
+              </Button>
+              <Button onClick={handleSaveEditDoc}>Simpan Perubahan</Button>
+            </div>
+          </div>
+        )}
       </Modal>
 
       {/* MODAL: Konfirmasi Tutup Buku */}

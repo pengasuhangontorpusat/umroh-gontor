@@ -40,28 +40,89 @@ export default async function HomePage() {
     getGeneralSettings(),
   ])
 
+  // System & Registration parameters
   const isRegistrationOpen = generalSettings.registrationOpen !== false
   const hasActivePackages = activePackages.length > 0
   const isAvailable = isRegistrationOpen && hasActivePackages
 
-  const minPrice = hasActivePackages ? activePackages[0].price : null
-  const minDp = hasActivePackages ? activePackages[0].dp_amount : null
+  // Branding & Text Content
+  const siteTitle = (generalSettings.siteTitle as string) || 'Umrah 100 Tahun Gontor'
+  const siteSubtitle =
+    (generalSettings.siteSubtitle as string) ||
+    'Daftarkan diri Anda atau keluarga untuk program umrah dalam rangka peringatan 100 tahun Pondok Modern Darussalam Gontor. Proses pendaftaran dirancang sesederhana mungkin.'
+  const heroBadge = (generalSettings.heroBadge as string) || 'Pendaftaran Resmi'
+  const brandLogoText = (generalSettings.brandLogoText as string) || 'G'
 
-  const REQUIRED_DOCS = [
-    { icon: '📄', label: 'KTP', note: 'Wajib untuk jamaah usia 17 tahun ke atas' },
-    { icon: '📋', label: 'Kartu Keluarga', note: 'Untuk semua anggota keluarga' },
-    {
-      icon: '💉',
-      label: 'Kartu Vaksin Meningitis & Polio',
-      note: 'Dapat dikoordinasikan dengan panitia',
-    },
-    { icon: '📘', label: 'Paspor', note: 'Jika belum memiliki, dapat ditandai dan dilengkapi kemudian' },
-  ]
+  // Footer & Organization
+  const footerTitle = (generalSettings.footerTitle as string) || 'Panitia Umrah 100 Tahun Gontor'
+  const footerSubtitle = (generalSettings.footerSubtitle as string) || 'Pondok Modern Darussalam Gontor'
+  const footerCopyright = (generalSettings.footerCopyright as string) || `© ${new Date().getFullYear()}`
+
+  // Contact
+  const rawWa = (generalSettings.helpdeskWhatsapp as string) || '081234567890'
+  const digitsOnly = rawWa.replace(/\D/g, '')
+  const cleanWa = digitsOnly.startsWith('0')
+    ? '62' + digitsOnly.slice(1)
+    : digitsOnly.startsWith('62')
+    ? digitsOnly
+    : '62' + digitsOnly
+  const contactEmail = (generalSettings.contactEmail as string) || 'umrah@gontor.ac.id'
+
+  // Document Requirements (Flexible from Settings)
+  interface DocReqItem {
+    id: string
+    name: string
+    description: string
+    icon: string
+    isRequired: boolean
+    isActive: boolean
+  }
+
+  const configuredDocs = (
+    Array.isArray(generalSettings.documentRequirements) && generalSettings.documentRequirements.length > 0
+      ? generalSettings.documentRequirements
+      : [
+          {
+            id: 'ktp',
+            name: 'KTP (Kartu Tanda Penduduk)',
+            description: 'Wajib untuk jamaah usia 17 tahun ke atas',
+            icon: '📄',
+            isRequired: true,
+            isActive: true,
+          },
+          {
+            id: 'kk',
+            name: 'Kartu Keluarga',
+            description: 'Untuk semua anggota keluarga',
+            icon: '📋',
+            isRequired: true,
+            isActive: true,
+          },
+          {
+            id: 'vaksin',
+            name: 'Kartu Vaksin Meningitis & Polio',
+            description: 'Dapat dikoordinasikan dengan panitia',
+            icon: '💉',
+            isRequired: false,
+            isActive: true,
+          },
+          {
+            id: 'paspor',
+            name: 'Paspor',
+            description: 'Jika belum memiliki, dapat ditandai dan dilengkapi kemudian',
+            icon: '📘',
+            isRequired: false,
+            isActive: true,
+          },
+        ]
+  ) as DocReqItem[]
+
+  const activeDocs = configuredDocs.filter((d) => d.isActive !== false)
 
   const REGISTRATION_STEPS = [
     { step: '01', label: 'Pilih Jenis', desc: 'Individu atau bersama keluarga' },
     { step: '02', label: 'Data Diri', desc: 'Isi informasi pribadi setiap jamaah' },
-    { step: '03', label: 'Dokumen', desc: 'Unggah KTP, KK, vaksin, dan paspor' },
+    { step: '03', label: 'Dokumen', desc: 'Unggah berkas persyaratan' },
     { step: '04', label: 'Pembayaran', desc: 'Bayar penuh atau DP' },
     { step: '05', label: 'Konfirmasi', desc: 'Tinjau dan kirim pendaftaran' },
   ]
@@ -98,10 +159,10 @@ export default async function HomePage() {
         <div className="max-w-5xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
             <div className="w-7 h-7 rounded bg-[var(--primary)] flex items-center justify-center">
-              <span className="text-white text-xs font-bold">G</span>
+              <span className="text-white text-xs font-bold">{brandLogoText}</span>
             </div>
             <span className="text-sm font-semibold text-[var(--text-primary)]">
-              Umrah 100 Tahun Gontor
+              {siteTitle}
             </span>
           </div>
           {isAvailable ? (
@@ -122,15 +183,13 @@ export default async function HomePage() {
       <section className="max-w-5xl mx-auto px-4 sm:px-6 pt-14 pb-12">
         <div className="max-w-2xl">
           <p className="text-xs font-medium text-[var(--primary)] uppercase tracking-wider mb-3">
-            Pendaftaran Resmi
+            {heroBadge}
           </p>
           <h1 className="text-2xl sm:text-3xl font-semibold text-[var(--text-primary)] leading-snug mb-4">
-            Umrah 100 Tahun Gontor
+            {siteTitle}
           </h1>
           <p className="text-[var(--text-secondary)] text-base leading-relaxed mb-6 max-w-xl">
-            Daftarkan diri Anda atau keluarga untuk program umrah dalam rangka peringatan 100
-            tahun Pondok Modern Darussalam Gontor. Proses pendaftaran dirancang sesederhana
-            mungkin.
+            {siteSubtitle}
           </p>
 
           {/* Registration Notice / Status */}
@@ -232,35 +291,55 @@ export default async function HomePage() {
       <div className="border-t border-[var(--border)]" />
 
       {/* ============================================================
-          Dokumen
+          Dokumen Persyaratan
           ============================================================ */}
       <section className="max-w-5xl mx-auto px-4 sm:px-6 py-12">
         <div className="flex items-start gap-2 mb-5">
           <FileText className="w-4 h-4 text-[var(--primary)] mt-0.5 flex-shrink-0" />
           <h2 className="text-base font-semibold text-[var(--text-primary)]">
-            Dokumen yang Diperlukan
+            Dokumen yang Diperlukan ({activeDocs.length} Berkas)
           </h2>
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          {REQUIRED_DOCS.map((doc) => (
-            <div
-              key={doc.label}
-              className="flex items-start gap-3 border border-[var(--border)] rounded-[var(--radius-md)] px-4 py-3"
-            >
-              <span className="text-base">{doc.icon}</span>
-              <div>
-                <p className="text-sm font-medium text-[var(--text-primary)]">{doc.label}</p>
-                <p className="text-xs text-[var(--text-muted)] mt-0.5">{doc.note}</p>
+
+        {activeDocs.length === 0 ? (
+          <div className="p-4 bg-slate-50 border border-[var(--border)] rounded-[var(--radius-md)] text-xs text-[var(--text-secondary)]">
+            Daftar persyaratan berkas sedang disiapkan dan disesuaikan oleh Panitia.
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {activeDocs.map((doc) => (
+              <div
+                key={doc.id || doc.name}
+                className="flex items-start gap-3 border border-[var(--border)] rounded-[var(--radius-md)] px-4 py-3 bg-white"
+              >
+                <span className="text-lg shrink-0">{doc.icon || '📄'}</span>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="text-sm font-medium text-[var(--text-primary)]">{doc.name}</p>
+                    <span
+                      className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${
+                        doc.isRequired
+                          ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                          : 'bg-slate-100 text-slate-600'
+                      }`}
+                    >
+                      {doc.isRequired ? 'Wajib' : 'Opsional / Menyusul'}
+                    </span>
+                  </div>
+                  {doc.description && (
+                    <p className="text-xs text-[var(--text-muted)] mt-0.5 leading-relaxed">
+                      {doc.description}
+                    </p>
+                  )}
+                </div>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
 
         <div className="mt-4 p-3 bg-[var(--warning-light)] rounded-[var(--radius-md)] border border-amber-200">
           <p className="text-sm text-[var(--warning-foreground)]">
-            <span className="font-medium">Catatan jamaah di bawah umur:</span> Jamaah yang belum
-            berusia 17 tahun tidak diwajibkan menyertakan KTP. Kartu Keluarga sudah mencukupi
-            sebagai dokumen identitas.
+            <span className="font-medium">Catatan kelengkapan berkas:</span> Berkas yang belum siap (seperti paspor atau vaksin) dapat dilengkapi menyusul melalui menu <strong>Cek Status Pendaftaran</strong> setelah formulir terkirim.
           </p>
         </div>
       </section>
@@ -328,22 +407,26 @@ export default async function HomePage() {
           Kontak Panitia
         </h2>
         <div className="flex flex-col sm:flex-row gap-4">
-          <a
-            href="https://wa.me/6281234567890"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-2 text-sm text-[var(--text-secondary)] hover:text-[var(--primary)] transition-colors"
-          >
-            <Phone className="w-4 h-4" />
-            WhatsApp Panitia
-          </a>
-          <a
-            href="mailto:umrah@gontor.ac.id"
-            className="flex items-center gap-2 text-sm text-[var(--text-secondary)] hover:text-[var(--primary)] transition-colors"
-          >
-            <Mail className="w-4 h-4" />
-            umrah@gontor.ac.id
-          </a>
+          {rawWa && (
+            <a
+              href={`https://wa.me/${cleanWa}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-2 text-sm text-[var(--text-secondary)] hover:text-[var(--primary)] transition-colors"
+            >
+              <Phone className="w-4 h-4" />
+              WhatsApp Panitia ({rawWa})
+            </a>
+          )}
+          {contactEmail && (
+            <a
+              href={`mailto:${contactEmail}`}
+              className="flex items-center gap-2 text-sm text-[var(--text-secondary)] hover:text-[var(--primary)] transition-colors"
+            >
+              <Mail className="w-4 h-4" />
+              {contactEmail}
+            </a>
+          )}
         </div>
       </section>
 
@@ -354,13 +437,13 @@ export default async function HomePage() {
         <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           <div>
             <p className="text-sm font-medium text-[var(--text-primary)]">
-              Panitia Umrah 100 Tahun Gontor
+              {footerTitle}
             </p>
             <p className="text-xs text-[var(--text-muted)] mt-0.5">
-              Pondok Modern Darussalam Gontor
+              {footerSubtitle}
             </p>
           </div>
-          <p className="text-xs text-[var(--text-muted)]">© 2026</p>
+          <p className="text-xs text-[var(--text-muted)]">{footerCopyright}</p>
         </div>
       </footer>
     </div>
