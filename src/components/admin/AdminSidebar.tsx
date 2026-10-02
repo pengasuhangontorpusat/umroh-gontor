@@ -17,6 +17,7 @@ import {
   Menu,
   X,
   LogOut,
+  FileCheck,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Drawer } from '@/components/ui/Drawer'
@@ -26,6 +27,7 @@ import { useRouter } from 'next/navigation'
 const NAV_ITEMS = [
   { href: '/admin', label: 'Dashboard', icon: LayoutDashboard, exact: true },
   { href: '/admin/pendaftaran', label: 'Pendaftaran & Jamaah', icon: ClipboardList },
+  { href: '/admin/review-berkas', label: 'Review & Verifikasi Berkas', icon: FileCheck },
   { href: '/admin/manifest', label: 'Manifest & Ekspor', icon: FileBarChart },
   { href: '/admin/pengaturan', label: 'Master Data & Dropdown', icon: Settings },
   { href: '/admin/audit-log', label: 'Audit Log', icon: ScrollText },
