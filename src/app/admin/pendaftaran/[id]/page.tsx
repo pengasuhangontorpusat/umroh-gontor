@@ -31,6 +31,7 @@ import {
   ShieldAlert,
   Info,
   CheckCircle,
+  Globe,
 } from 'lucide-react'
 import { DOCUMENT_TYPE_LABELS, DocumentStatus, DocumentType, PaymentStatus } from '@/types'
 
@@ -79,13 +80,6 @@ export default async function GroupDetailPage({ params }: PageProps) {
   const pkg = group.package as Record<string, unknown> | null
   const depPoint = group.departure_point as Record<string, unknown> | null
 
-  // 4 Standard documents to check for every jamaah
-  const STANDARD_DOCS: Array<{ type: DocumentType; label: string; desc: string }> = [
-    { type: 'ktp', label: 'KTP (Kartu Tanda Penduduk)', desc: 'Wajib bagi jamaah usia >= 17 tahun' },
-    { type: 'kk', label: 'KK (Kartu Keluarga)', desc: 'Wajib untuk verifikasi hubungan keluarga' },
-    { type: 'paspor', label: 'Paspor RI', desc: 'Scan halaman depan identitas paspor yang jelas' },
-    { type: 'vaksin', label: 'Kartu/Sertifikat Vaksin', desc: 'Vaksin meningitis / polio' },
-  ]
 
   return (
     <div className="space-y-6 max-w-5xl pb-12">
@@ -229,6 +223,55 @@ export default async function GroupDetailPage({ params }: PageProps) {
             const passportStatusKey = (jamaah.passport_status as string) || 'no_passport'
             const passportStatusInfo = PASSPORT_STATUS_LABELS[passportStatusKey] || PASSPORT_STATUS_LABELS.no_passport
 
+            const isWna = Boolean(
+              (jamaah.nationality && String(jamaah.nationality).toLowerCase() !== 'indonesia') ||
+              (jamaah as any).citizenship_type === 'wna'
+            )
+            const ktpRequired = birthDate ? isKtpRequired(birthDate) : true
+
+            const jamaahDocsList: Array<{
+              type: DocumentType
+              label: string
+              desc: string
+              required: boolean
+              isOptionalForWna?: boolean
+            }> = [
+              {
+                type: 'ktp',
+                label: isWna ? 'KTP / ID Card Asing' : 'KTP (Kartu Tanda Penduduk)',
+                desc: isWna
+                  ? 'Khusus WNI — Tidak diwajibkan untuk WNA'
+                  : ktpRequired
+                  ? 'Wajib bagi jamaah usia >= 17 tahun'
+                  : 'Tidak wajib (di bawah 17 tahun)',
+                required: !isWna && ktpRequired,
+                isOptionalForWna: isWna,
+              },
+              {
+                type: 'kk',
+                label: 'KK (Kartu Keluarga)',
+                desc: isWna
+                  ? 'Opsional bagi WNA (sesuai arahan panitia)'
+                  : 'Wajib untuk verifikasi hubungan keluarga',
+                required: !isWna,
+                isOptionalForWna: isWna,
+              },
+              {
+                type: 'paspor',
+                label: isWna ? 'Paspor Internasional (Wajib WNA)' : 'Paspor RI',
+                desc: isWna
+                  ? 'Wajib untuk WNA (identitas utama penerbitan visa & tiket Saudi)'
+                  : 'Scan halaman depan identitas paspor yang jelas',
+                required: isWna,
+              },
+              {
+                type: 'vaksin',
+                label: 'Kartu/Sertifikat Vaksin',
+                desc: 'Vaksin meningitis / polio internasional',
+                required: false,
+              },
+            ]
+
             return (
               <div
                 key={jamaah.id as string}
@@ -247,6 +290,15 @@ export default async function GroupDetailPage({ params }: PageProps) {
                         </h3>
                         <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-emerald-50 text-emerald-800 border border-emerald-200">
                           {(jamaah.relationship_to_pic as string) || 'Anggota'}
+                        </span>
+                        <span
+                          className={`text-xs px-2.5 py-0.5 rounded-full font-semibold border ${
+                            isWna
+                              ? 'bg-amber-50 text-amber-900 border-amber-300'
+                              : 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                          }`}
+                        >
+                          {isWna ? `WNA (${(jamaah.nationality as string) || 'Luar Negeri'})` : 'WNI (Indonesia)'}
                         </span>
                         <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-slate-100 text-slate-700 border border-slate-200">
                           {jamaah.gender === 'male' ? 'Laki-laki' : 'Perempuan'}
@@ -277,9 +329,11 @@ export default async function GroupDetailPage({ params }: PageProps) {
                     </h4>
                     <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 bg-[var(--surface)] p-3.5 rounded-lg border border-[var(--border)] text-xs">
                       <div>
-                        <span className="text-[var(--text-muted)] block text-[11px]">Nomor NIK</span>
+                        <span className="text-[var(--text-muted)] block text-[11px]">
+                          {isWna ? 'ID Asing / IC' : 'Nomor NIK'}
+                        </span>
                         <span className="font-mono font-semibold text-[var(--text-primary)] text-xs">
-                          {(jamaah.nik as string) || '—'}
+                          {(jamaah.nik as string) || (isWna ? 'Tidak Diperlukan (WNA)' : '—')}
                         </span>
                       </div>
                       <div>
@@ -307,7 +361,7 @@ export default async function GroupDetailPage({ params }: PageProps) {
                             href={`https://wa.me/${normalizePhone(jamaah.phone as string)}`}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="font-medium text-emerald-700 hover:underline inline-flex items-center gap-1"
+                            className="font-medium text-emerald-700 hover:underline inline-flex items-center gap-1 font-mono"
                           >
                             <Phone className="w-2.5 h-2.5 text-emerald-600" />
                             {jamaah.phone as string}
@@ -318,8 +372,8 @@ export default async function GroupDetailPage({ params }: PageProps) {
                       </div>
                       <div>
                         <span className="text-[var(--text-muted)] block text-[11px]">Kewarganegaraan</span>
-                        <span className="font-medium text-[var(--text-primary)]">
-                          {(jamaah.nationality as string) || 'Indonesia'}
+                        <span className="font-semibold text-[var(--text-primary)]">
+                          {isWna ? `WNA (${(jamaah.nationality as string) || 'Luar Negeri'})` : 'WNI (Indonesia)'}
                         </span>
                       </div>
                       <div>
@@ -348,24 +402,33 @@ export default async function GroupDetailPage({ params }: PageProps) {
                       <div className="flex items-center justify-between gap-2 border-b border-[var(--border)] pb-2">
                         <span className="font-bold text-[var(--text-primary)] flex items-center gap-1.5">
                           <Plane className="w-3.5 h-3.5 text-emerald-700" />
-                          2. Data Paspor RI
+                          {isWna ? '2. Data Paspor Internasional' : '2. Data Paspor RI'}
                         </span>
-                        <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${passportStatusInfo.color}`}>
-                          {passportStatusInfo.label}
-                        </span>
+                        <div className="flex items-center gap-1.5">
+                          {isWna && (
+                            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-900 border border-amber-300">
+                              Wajib WNA
+                            </span>
+                          )}
+                          <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${passportStatusInfo.color}`}>
+                            {passportStatusInfo.label}
+                          </span>
+                        </div>
                       </div>
 
                       <div className="grid grid-cols-2 gap-2 pt-1">
                         <div>
                           <span className="text-[var(--text-muted)] block text-[11px]">Nomor Paspor</span>
                           <span className="font-mono font-bold text-slate-800 text-xs">
-                            {(jamaah.passport_number as string) || 'Belum Ada'}
+                            {(jamaah.passport_number as string) || (isWna ? 'Belum Diisi (Wajib)' : 'Belum Ada')}
                           </span>
                         </div>
                         <div>
-                          <span className="text-[var(--text-muted)] block text-[11px]">Kantor Imigrasi Terbit</span>
+                          <span className="text-[var(--text-muted)] block text-[11px]">
+                            {isWna ? 'Negara / Otoritas Penerbit' : 'Kantor Imigrasi Terbit'}
+                          </span>
                           <span className="font-medium text-[var(--text-primary)]">
-                            {(jamaah.passport_issue_place as string) || '—'}
+                            {(jamaah.passport_issue_place as string) || (isWna ? (jamaah.nationality as string) || '—' : '—')}
                           </span>
                         </div>
                         <div>
@@ -385,21 +448,53 @@ export default async function GroupDetailPage({ params }: PageProps) {
 
                     {/* Data Alamat Domisili */}
                     <div className="p-3.5 bg-[var(--surface)] rounded-lg border border-[var(--border)] text-xs space-y-2">
-                      <div className="border-b border-[var(--border)] pb-2 font-bold text-[var(--text-primary)] flex items-center gap-1.5">
-                        <MapPin className="w-3.5 h-3.5 text-blue-600" />
-                        3. Alamat Domisili KTP
+                      <div className="border-b border-[var(--border)] pb-2 font-bold text-[var(--text-primary)] flex items-center justify-between gap-1.5">
+                        <span className="flex items-center gap-1.5">
+                          <MapPin className="w-3.5 h-3.5 text-blue-600" />
+                          {isWna ? '3. Alamat Domisili Luar Negeri' : '3. Alamat Domisili KTP'}
+                        </span>
+                        {isWna && (
+                          <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-blue-50 text-blue-800 border border-blue-200">
+                            {(jamaah.nationality as string) || 'Luar Negeri'}
+                          </span>
+                        )}
                       </div>
 
                       <div className="space-y-1 pt-1">
-                        <p className="font-medium text-[var(--text-primary)]">
-                          {(jamaah.address as string) || '—'}
-                        </p>
-                        <p className="text-[var(--text-muted)] text-[11px]">
-                          Desa/Kel. {(jamaah.village as string) || '—'}, Kec. {(jamaah.district as string) || '—'}
-                        </p>
-                        <p className="text-[var(--text-muted)] text-[11px]">
-                          {(jamaah.city as string) || '—'}, Prov. {(jamaah.province as string) || '—'}
-                        </p>
+                        {isWna ? (
+                          <>
+                            <div>
+                              <span className="text-[var(--text-muted)] block text-[10px]">Negara Domisili:</span>
+                              <span className="font-semibold text-slate-800">
+                                {(jamaah.nationality as string) || 'Luar Negeri'}
+                              </span>
+                            </div>
+                            <div>
+                              <span className="text-[var(--text-muted)] block text-[10px]">Kota / State / Wilayah:</span>
+                              <span className="font-medium text-slate-800">
+                                {(jamaah.city as string) || '—'}
+                              </span>
+                            </div>
+                            <div>
+                              <span className="text-[var(--text-muted)] block text-[10px]">Alamat Lengkap di Luar Negeri:</span>
+                              <p className="font-medium text-[var(--text-primary)]">
+                                {(jamaah.address as string) || '—'}
+                              </p>
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            <p className="font-medium text-[var(--text-primary)]">
+                              {(jamaah.address as string) || '—'}
+                            </p>
+                            <p className="text-[var(--text-muted)] text-[11px]">
+                              Desa/Kel. {(jamaah.village as string) || '—'}, Kec. {(jamaah.district as string) || '—'}
+                            </p>
+                            <p className="text-[var(--text-muted)] text-[11px]">
+                              {(jamaah.city as string) || '—'}, Prov. {(jamaah.province as string) || '—'}
+                            </p>
+                          </>
+                        )}
                         {Boolean(jamaah.medical_history) && (
                           <div className="mt-2 pt-2 border-t border-[var(--border)] text-[11px]">
                             <span className="font-semibold text-rose-800">Riwayat Penyakit: </span>
@@ -418,7 +513,7 @@ export default async function GroupDetailPage({ params }: PageProps) {
                     </h4>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                      {STANDARD_DOCS.map((docItem) => {
+                      {jamaahDocsList.map((docItem) => {
                         const existingDoc = docs.find((d) => d.document_type === docItem.type)
                         const isUploaded = Boolean(existingDoc && existingDoc.verification_status !== 'not_uploaded')
                         const hasFileUrl = Boolean(existingDoc?.drive_web_view_url)
@@ -429,15 +524,28 @@ export default async function GroupDetailPage({ params }: PageProps) {
                             className={`p-3.5 rounded-lg border transition-colors ${
                               isUploaded
                                 ? 'bg-white border-slate-200'
+                                : docItem.isOptionalForWna
+                                ? 'bg-slate-50/50 border-dashed border-slate-200'
                                 : 'bg-slate-50/70 border-slate-200'
                             }`}
                           >
                             <div className="flex items-start justify-between gap-2 mb-2">
                               <div>
-                                <p className="text-xs font-bold text-[var(--text-primary)]">
-                                  {docItem.label}
-                                </p>
-                                <p className="text-[11px] text-[var(--text-muted)]">
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <p className="text-xs font-bold text-[var(--text-primary)]">
+                                    {docItem.label}
+                                  </p>
+                                  {docItem.required ? (
+                                    <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-rose-50 text-rose-700 border border-rose-200">
+                                      Wajib
+                                    </span>
+                                  ) : docItem.isOptionalForWna ? (
+                                    <span className="text-[10px] font-medium px-1.5 py-0.2 rounded bg-slate-100 text-slate-500 border border-slate-200">
+                                      Opsional WNA
+                                    </span>
+                                  ) : null}
+                                </div>
+                                <p className="text-[11px] text-[var(--text-muted)] mt-0.5">
                                   {docItem.desc}
                                 </p>
                               </div>

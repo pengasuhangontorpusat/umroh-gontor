@@ -993,30 +993,49 @@ function StatusContent() {
                                   <span>Kontak & Domisili</span>
                                 </div>
                                 <div className="space-y-1 text-slate-600">
-                                  {isWna && (
-                                    <p>
-                                      <span className="text-slate-400 block text-[10px]">Negara Domisili:</span>
-                                      <span className="font-semibold text-slate-800">{jamaah.nationality || 'Luar Negeri'}</span>
-                                    </p>
+                                  {isWna ? (
+                                    <>
+                                      <p>
+                                        <span className="text-slate-400 block text-[10px]">Negara Domisili:</span>
+                                        <span className="font-semibold text-slate-800">{jamaah.nationality || 'Luar Negeri'}</span>
+                                      </p>
+                                      <p>
+                                        <span className="text-slate-400 block text-[10px]">Kota / State / Wilayah:</span>
+                                        <span className="font-medium text-slate-800">{jamaah.city || '—'}</span>
+                                      </p>
+                                      <p>
+                                        <span className="text-slate-400 block text-[10px]">Nomor HP / WhatsApp:</span>
+                                        <span className="font-medium text-slate-800 font-mono">{jamaah.phone || '—'}</span>
+                                      </p>
+                                      <p>
+                                        <span className="text-slate-400 block text-[10px]">Alamat di Luar Negeri:</span>
+                                        <span className="font-medium text-slate-800">
+                                          {jamaah.address || '—'}
+                                        </span>
+                                      </p>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <p>
+                                        <span className="text-slate-400 block text-[10px]">Nomor HP / WhatsApp:</span>
+                                        <span className="font-medium text-slate-800 font-mono">{jamaah.phone || '—'}</span>
+                                      </p>
+                                      <p>
+                                        <span className="text-slate-400 block text-[10px]">Alamat Lengkap:</span>
+                                        <span className="font-medium text-slate-800">
+                                          {jamaah.address || '—'}
+                                        </span>
+                                      </p>
+                                      <p>
+                                        <span className="text-slate-400 block text-[10px]">Wilayah Domisili:</span>
+                                        <span className="font-medium text-slate-800">
+                                          {[jamaah.village, jamaah.district, jamaah.city, jamaah.province]
+                                            .filter(Boolean)
+                                            .join(', ') || jamaah.city || '—'}
+                                        </span>
+                                      </p>
+                                    </>
                                   )}
-                                  <p>
-                                    <span className="text-slate-400 block text-[10px]">Nomor HP / WhatsApp:</span>
-                                    <span className="font-medium text-slate-800 font-mono">{jamaah.phone || '—'}</span>
-                                  </p>
-                                  <p>
-                                    <span className="text-slate-400 block text-[10px]">Alamat Lengkap:</span>
-                                    <span className="font-medium text-slate-800">
-                                      {jamaah.address || '—'}
-                                    </span>
-                                  </p>
-                                  <p>
-                                    <span className="text-slate-400 block text-[10px]">Wilayah:</span>
-                                    <span className="font-medium text-slate-800">
-                                      {[jamaah.village, jamaah.district, jamaah.city, jamaah.province]
-                                        .filter(Boolean)
-                                        .join(', ') || jamaah.city || '—'}
-                                    </span>
-                                  </p>
                                 </div>
                               </div>
 
@@ -1093,9 +1112,13 @@ function StatusContent() {
                                           <div className="mt-1.5">
                                             {foundDoc ? (
                                               <DocumentStatusBadge status={status as never} />
+                                            ) : !required ? (
+                                              <span className="text-[11px] text-slate-400 font-medium">
+                                                {isWna ? 'Tidak Diwajibkan (WNA)' : 'Opsional'}
+                                              </span>
                                             ) : (
-                                              <span className="text-[11px] text-slate-500 font-medium">
-                                                Belum Diunggah
+                                              <span className="text-[11px] text-amber-700 font-semibold">
+                                                Belum Diunggah (Wajib)
                                               </span>
                                             )}
                                           </div>
@@ -1652,81 +1675,128 @@ function StatusContent() {
                     2. Kontak & Alamat Domisili
                   </p>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div className="space-y-1">
-                      <label className="text-xs font-semibold text-slate-700">
-                        Nomor HP / WhatsApp
-                      </label>
-                      <input
-                        type="text"
-                        value={editForm.phone}
-                        onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
-                        placeholder="Contoh: 08123456789"
-                        className="w-full h-9 px-3 border border-slate-300 rounded-md text-sm text-slate-900 font-medium focus:border-emerald-700 focus:outline-none"
-                      />
-                    </div>
+                  {editForm.citizenship_type === 'wna' ? (
+                    <div className="space-y-3">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div className="space-y-1">
+                          <label className="text-xs font-semibold text-slate-700">
+                            Nomor HP / WhatsApp (Format Internasional)
+                          </label>
+                          <input
+                            type="text"
+                            value={editForm.phone}
+                            onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
+                            placeholder="Contoh: +60 12-345 6789"
+                            className="w-full h-9 px-3 border border-slate-300 rounded-md text-sm text-slate-900 font-medium focus:border-emerald-700 focus:outline-none"
+                          />
+                        </div>
 
-                    <div className="space-y-1">
-                      <label className="text-xs font-semibold text-slate-700">
-                        Provinsi
-                      </label>
-                      <input
-                        type="text"
-                        value={editForm.province}
-                        onChange={(e) => setEditForm({ ...editForm, province: e.target.value })}
-                        placeholder="Contoh: Jawa Timur"
-                        className="w-full h-9 px-3 border border-slate-300 rounded-md text-sm text-slate-900 font-medium focus:border-emerald-700 focus:outline-none"
-                      />
-                    </div>
+                        <div className="space-y-1">
+                          <label className="text-xs font-semibold text-slate-700">
+                            Kota / State / Wilayah Luar Negeri
+                          </label>
+                          <input
+                            type="text"
+                            value={editForm.city}
+                            onChange={(e) => setEditForm({ ...editForm, city: e.target.value })}
+                            placeholder="Contoh: Kuala Lumpur / Bangkok"
+                            className="w-full h-9 px-3 border border-slate-300 rounded-md text-sm text-slate-900 font-medium focus:border-emerald-700 focus:outline-none"
+                          />
+                        </div>
+                      </div>
 
-                    <div className="space-y-1">
-                      <label className="text-xs font-semibold text-slate-700">
-                        Kota / Kabupaten
-                      </label>
-                      <input
-                        type="text"
-                        value={editForm.city}
-                        onChange={(e) => setEditForm({ ...editForm, city: e.target.value })}
-                        placeholder="Contoh: Kab. Ponorogo"
-                        className="w-full h-9 px-3 border border-slate-300 rounded-md text-sm text-slate-900 font-medium focus:border-emerald-700 focus:outline-none"
-                      />
-                    </div>
-
-                    <div className="space-y-1">
-                      <label className="text-xs font-semibold text-slate-700">
-                        Kecamatan & Kelurahan
-                      </label>
-                      <div className="grid grid-cols-2 gap-2">
-                        <input
-                          type="text"
-                          value={editForm.district}
-                          onChange={(e) => setEditForm({ ...editForm, district: e.target.value })}
-                          placeholder="Kecamatan"
-                          className="w-full h-9 px-3 border border-slate-300 rounded-md text-sm text-slate-900 font-medium focus:border-emerald-700 focus:outline-none"
-                        />
-                        <input
-                          type="text"
-                          value={editForm.village}
-                          onChange={(e) => setEditForm({ ...editForm, village: e.target.value })}
-                          placeholder="Desa/Kel."
-                          className="w-full h-9 px-3 border border-slate-300 rounded-md text-sm text-slate-900 font-medium focus:border-emerald-700 focus:outline-none"
+                      <div className="space-y-1">
+                        <label className="text-xs font-semibold text-slate-700">
+                          Alamat Lengkap di Luar Negeri (Jalan, Bangunan, Postal Code)
+                        </label>
+                        <textarea
+                          rows={2}
+                          value={editForm.address}
+                          onChange={(e) => setEditForm({ ...editForm, address: e.target.value })}
+                          placeholder="Masukkan alamat domisili lengkap di luar negeri..."
+                          className="w-full p-2.5 border border-slate-300 rounded-md text-sm text-slate-900 font-medium focus:border-emerald-700 focus:outline-none"
                         />
                       </div>
                     </div>
-                  </div>
+                  ) : (
+                    <div className="space-y-3">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div className="space-y-1">
+                          <label className="text-xs font-semibold text-slate-700">
+                            Nomor HP / WhatsApp
+                          </label>
+                          <input
+                            type="text"
+                            value={editForm.phone}
+                            onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
+                            placeholder="Contoh: 08123456789"
+                            className="w-full h-9 px-3 border border-slate-300 rounded-md text-sm text-slate-900 font-medium focus:border-emerald-700 focus:outline-none"
+                          />
+                        </div>
 
-                  <div className="space-y-1">
-                    <label className="text-xs font-semibold text-slate-700">
-                      Alamat Lengkap (Jalan, RT/RW, No. Rumah)
-                    </label>
-                    <textarea
-                      rows={2}
-                      value={editForm.address}
-                      onChange={(e) => setEditForm({ ...editForm, address: e.target.value })}
-                      placeholder="Masukkan alamat domisili lengkap..."
-                      className="w-full p-2.5 border border-slate-300 rounded-md text-sm text-slate-900 font-medium focus:border-emerald-700 focus:outline-none"
-                    />
-                  </div>
+                        <div className="space-y-1">
+                          <label className="text-xs font-semibold text-slate-700">
+                            Provinsi
+                          </label>
+                          <input
+                            type="text"
+                            value={editForm.province}
+                            onChange={(e) => setEditForm({ ...editForm, province: e.target.value })}
+                            placeholder="Contoh: Jawa Timur"
+                            className="w-full h-9 px-3 border border-slate-300 rounded-md text-sm text-slate-900 font-medium focus:border-emerald-700 focus:outline-none"
+                          />
+                        </div>
+
+                        <div className="space-y-1">
+                          <label className="text-xs font-semibold text-slate-700">
+                            Kota / Kabupaten
+                          </label>
+                          <input
+                            type="text"
+                            value={editForm.city}
+                            onChange={(e) => setEditForm({ ...editForm, city: e.target.value })}
+                            placeholder="Contoh: Kab. Ponorogo"
+                            className="w-full h-9 px-3 border border-slate-300 rounded-md text-sm text-slate-900 font-medium focus:border-emerald-700 focus:outline-none"
+                          />
+                        </div>
+
+                        <div className="space-y-1">
+                          <label className="text-xs font-semibold text-slate-700">
+                            Kecamatan & Kelurahan
+                          </label>
+                          <div className="grid grid-cols-2 gap-2">
+                            <input
+                              type="text"
+                              value={editForm.district}
+                              onChange={(e) => setEditForm({ ...editForm, district: e.target.value })}
+                              placeholder="Kecamatan"
+                              className="w-full h-9 px-3 border border-slate-300 rounded-md text-sm text-slate-900 font-medium focus:border-emerald-700 focus:outline-none"
+                            />
+                            <input
+                              type="text"
+                              value={editForm.village}
+                              onChange={(e) => setEditForm({ ...editForm, village: e.target.value })}
+                              placeholder="Desa/Kel."
+                              className="w-full h-9 px-3 border border-slate-300 rounded-md text-sm text-slate-900 font-medium focus:border-emerald-700 focus:outline-none"
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-xs font-semibold text-slate-700">
+                          Alamat Lengkap (Jalan, RT/RW, No. Rumah)
+                        </label>
+                        <textarea
+                          rows={2}
+                          value={editForm.address}
+                          onChange={(e) => setEditForm({ ...editForm, address: e.target.value })}
+                          placeholder="Masukkan alamat domisili lengkap..."
+                          className="w-full p-2.5 border border-slate-300 rounded-md text-sm text-slate-900 font-medium focus:border-emerald-700 focus:outline-none"
+                        />
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Section Perlengkapan & Kebutuhan Khusus */}
