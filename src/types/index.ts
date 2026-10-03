@@ -26,7 +26,7 @@ export type DocumentStatus =
   | 'revision_required'
   | 'rejected'
 
-export type PaymentType = 'dp' | 'full' | 'other'
+export type PaymentType = 'dp' | 'full' | 'pelunasan' | 'other'
 
 export type PaymentStatus = 'pending' | 'proof_uploaded' | 'verified' | 'rejected'
 

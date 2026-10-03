@@ -29,6 +29,9 @@ import {
   Building2,
   Phone,
   Mail,
+  Image as ImageIcon,
+  Share2,
+  Sparkles,
 } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
@@ -153,6 +156,8 @@ export default function MasterSettingsPage() {
       'Daftarkan diri Anda atau keluarga untuk program umrah dalam rangka peringatan 100 tahun Pondok Modern Darussalam Gontor. Proses pendaftaran dirancang sesederhana mungkin.',
     heroBadge: 'Pendaftaran Resmi',
     brandLogoText: 'G',
+    logoUrl: '',
+    bannerUrl: '',
     // Footer & Organization
     footerTitle: 'Panitia Umrah 100 Tahun Gontor',
     footerSubtitle: 'Pondok Modern Darussalam Gontor',
@@ -207,6 +212,8 @@ export default function MasterSettingsPage() {
   } | null>(null)
   const [isSavingDrive, setIsSavingDrive] = useState(false)
   const [isSavingGeneral, setIsSavingGeneral] = useState(false)
+  const [uploadingLogo, setUploadingLogo] = useState(false)
+  const [uploadingBanner, setUploadingBanner] = useState(false)
 
   // Notifications
   const [saveSuccess, setSaveSuccess] = useState(false)
@@ -669,6 +676,57 @@ export default function MasterSettingsPage() {
     } finally {
       setIsSavingGeneral(false)
     }
+  }
+
+  // Logo & Banner Asset Handlers
+  const handleUploadAsset = async (file: File, type: 'logo' | 'banner') => {
+    const isLogo = type === 'logo'
+    if (isLogo) setUploadingLogo(true)
+    else setUploadingBanner(true)
+
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+      formData.append('type', type)
+
+      const res = await fetch('/api/admin/settings/upload-asset', {
+        method: 'POST',
+        body: formData,
+      })
+      const data = await res.json()
+
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Gagal mengunggah berkas gambar.')
+      }
+
+      const updated = {
+        ...generalSettings,
+        [isLogo ? 'logoUrl' : 'bannerUrl']: data.url,
+      }
+      setGeneralSettings(updated)
+      await handleSaveGeneralSettings(updated, false)
+      triggerSaveNotification()
+      alert(`${isLogo ? 'Logo website' : 'Banner website'} berhasil diperbarui dan disimpan!`)
+    } catch (err: unknown) {
+      console.error(err)
+      alert(err instanceof Error ? err.message : 'Terjadi kesalahan saat mengunggah gambar.')
+    } finally {
+      if (isLogo) setUploadingLogo(false)
+      else setUploadingBanner(false)
+    }
+  }
+
+  const handleRemoveAsset = async (type: 'logo' | 'banner') => {
+    const isLogo = type === 'logo'
+    if (!confirm(`Hapus ${isLogo ? 'logo website' : 'banner website'}? Tampilan akan kembali ke default.`)) return
+
+    const updated = {
+      ...generalSettings,
+      [isLogo ? 'logoUrl' : 'bannerUrl']: '',
+    }
+    setGeneralSettings(updated)
+    await handleSaveGeneralSettings(updated, false)
+    triggerSaveNotification()
   }
 
   // Document Requirements Handlers
@@ -1562,6 +1620,164 @@ export default function MasterSettingsPage() {
                 className="w-full px-3 py-2 text-sm border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
                 placeholder="Daftarkan diri Anda atau keluarga untuk program umrah..."
               />
+            </div>
+
+            {/* Upload Logo Web & Banner WhatsApp Share */}
+            <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-5">
+              <div>
+                <p className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                  <ImageIcon className="w-4 h-4 text-[var(--primary)]" />
+                  Media Visual Web (Logo & Banner WhatsApp Preview)
+                </p>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Unggah gambar logo dan banner website. Foto disimpan di Google Drive / Supabase Storage dan otomatis tampil saat link dibagikan di WhatsApp.
+                </p>
+              </div>
+
+              {/* Logo Section */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-slate-200">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Logo Web (Header & Brand)
+                  </label>
+                  <p className="text-[11px] text-slate-500 mb-2">
+                    Format PNG, JPG, WebP, atau SVG. Jika tidak diunggah, otomatis menggunakan logo inisial huruf di atas.
+                  </p>
+                  <div className="flex items-center gap-3">
+                    {generalSettings.logoUrl ? (
+                      <div className="relative group">
+                        <img
+                          src={generalSettings.logoUrl}
+                          alt="Logo Web"
+                          className="w-14 h-14 rounded-lg object-contain bg-white border border-slate-200 p-1 shadow-xs"
+                        />
+                      </div>
+                    ) : (
+                      <div className="w-14 h-14 rounded-lg bg-[var(--primary)] flex flex-col items-center justify-center text-white border border-emerald-600 shadow-xs">
+                        <span className="text-lg font-bold">{generalSettings.brandLogoText || 'G'}</span>
+                        <span className="text-[9px] opacity-80">Inisial</span>
+                      </div>
+                    )}
+                    <div className="space-y-1.5">
+                      <label className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-white border border-slate-300 text-slate-700 hover:bg-slate-100 cursor-pointer shadow-xs transition-colors">
+                        <Upload className="w-3.5 h-3.5 text-slate-600" />
+                        {uploadingLogo ? 'Mengunggah...' : generalSettings.logoUrl ? 'Ganti Logo' : 'Unggah Logo'}
+                        <input
+                          type="file"
+                          accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                          className="hidden"
+                          disabled={uploadingLogo}
+                          onChange={(e) => {
+                            const file = e.target.files?.[0]
+                            if (file) handleUploadAsset(file, 'logo')
+                          }}
+                        />
+                      </label>
+                      {generalSettings.logoUrl && (
+                        <div>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveAsset('logo')}
+                            className="text-[11px] text-rose-600 hover:underline block"
+                          >
+                            Hapus & Pakai Inisial '{generalSettings.brandLogoText || 'G'}'
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Banner / Social Share Upload */}
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Banner Web / Preview Link Media Sosial
+                  </label>
+                  <p className="text-[11px] text-slate-500 mb-2">
+                    Rekomendasi rasio 1.91:1 (misal 1200 x 630 px) untuk tampilan optimal di WhatsApp Web.
+                  </p>
+                  <div className="flex items-center gap-3">
+                    {generalSettings.bannerUrl ? (
+                      <img
+                        src={generalSettings.bannerUrl}
+                        alt="Banner Preview"
+                        className="w-24 h-14 rounded-lg object-cover bg-white border border-slate-200 shadow-xs"
+                      />
+                    ) : (
+                      <div className="w-24 h-14 rounded-lg bg-slate-200 border border-slate-300 flex items-center justify-center text-slate-500 text-xs font-medium">
+                        Default Banner
+                      </div>
+                    )}
+                    <div className="space-y-1.5">
+                      <label className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-white border border-slate-300 text-slate-700 hover:bg-slate-100 cursor-pointer shadow-xs transition-colors">
+                        <Upload className="w-3.5 h-3.5 text-slate-600" />
+                        {uploadingBanner ? 'Mengunggah...' : generalSettings.bannerUrl ? 'Ganti Banner' : 'Unggah Banner'}
+                        <input
+                          type="file"
+                          accept="image/png,image/jpeg,image/webp"
+                          className="hidden"
+                          disabled={uploadingBanner}
+                          onChange={(e) => {
+                            const file = e.target.files?.[0]
+                            if (file) handleUploadAsset(file, 'banner')
+                          }}
+                        />
+                      </label>
+                      {generalSettings.bannerUrl && (
+                        <div>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveAsset('banner')}
+                            className="text-[11px] text-rose-600 hover:underline block"
+                          >
+                            Hapus & Pakai Default
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* WhatsApp Live Share Preview Simulator */}
+              <div className="pt-3 border-t border-slate-200">
+                <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-700 mb-2">
+                  <Share2 className="w-3.5 h-3.5 text-emerald-600" />
+                  Simulasi Tampilan Link di WhatsApp Web (Open Graph Preview)
+                </div>
+                <div className="max-w-md bg-[#eef1f5] p-3 rounded-xl border border-slate-300">
+                  <div className="bg-white rounded-lg overflow-hidden border border-slate-200 shadow-xs text-left">
+                    <div className="w-full h-36 bg-slate-100 relative overflow-hidden flex items-center justify-center">
+                      {generalSettings.bannerUrl ? (
+                        <img
+                          src={generalSettings.bannerUrl}
+                          alt="WhatsApp Share Banner"
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <div className="flex flex-col items-center justify-center p-4 text-center">
+                          <ImageIcon className="w-8 h-8 text-slate-400 mb-1" />
+                          <span className="text-xs font-medium text-slate-500">Banner Web Belum Diunggah (Menggunakan Default)</span>
+                        </div>
+                      )}
+                    </div>
+                    <div className="p-3 bg-[#f0f2f5] border-t border-slate-200">
+                      <p className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">
+                        UMROH-GONTOR.VERCEL.APP
+                      </p>
+                      <p className="text-xs font-bold text-slate-900 line-clamp-1 mt-0.5">
+                        {generalSettings.siteTitle || 'Portal Resmi Umrah 100 Tahun Gontor'}
+                      </p>
+                      <p className="text-[11px] text-slate-600 line-clamp-2 mt-0.5 leading-snug">
+                        {generalSettings.siteSubtitle || 'Pendaftaran resmi program umrah peringatan 100 tahun Pondok Modern Darussalam Gontor.'}
+                      </p>
+                    </div>
+                  </div>
+                  <p className="text-[10px] text-slate-500 mt-1.5 text-center italic">
+                    Preview di atas menggambarkan secara real-time kartu banner yang muncul saat link website dikirimkan via WhatsApp.
+                  </p>
+                </div>
+              </div>
             </div>
           </div>
 

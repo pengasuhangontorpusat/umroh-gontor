@@ -68,6 +68,7 @@ export default async function HomePage() {
     'Daftarkan diri Anda atau keluarga untuk program umrah dalam rangka peringatan 100 tahun Pondok Modern Darussalam Gontor. Proses pendaftaran dirancang sesederhana mungkin.'
   const heroBadge = (generalSettings.heroBadge as string) || 'Pendaftaran Resmi'
   const brandLogoText = (generalSettings.brandLogoText as string) || 'G'
+  const logoUrl = (generalSettings.logoUrl as string) || ''
 
   // Footer & Organization
   const footerTitle = (generalSettings.footerTitle as string) || 'Panitia Umrah 100 Tahun Gontor'
@@ -183,9 +184,17 @@ export default async function HomePage() {
       <header className="border-b border-[var(--border)] bg-white sticky top-0 z-40">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
-            <div className="w-7 h-7 rounded bg-[var(--primary)] flex items-center justify-center">
-              <span className="text-white text-xs font-bold">{brandLogoText}</span>
-            </div>
+            {logoUrl ? (
+              <img
+                src={logoUrl}
+                alt={siteTitle}
+                className="w-7 h-7 rounded object-contain bg-white shadow-2xs"
+              />
+            ) : (
+              <div className="w-7 h-7 rounded bg-[var(--primary)] flex items-center justify-center">
+                <span className="text-white text-xs font-bold">{brandLogoText}</span>
+              </div>
+            )}
             <span className="text-sm font-semibold text-[var(--text-primary)]">
               {siteTitle}
             </span>

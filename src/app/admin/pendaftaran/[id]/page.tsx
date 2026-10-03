@@ -16,6 +16,7 @@ import {
   PaymentVerificationActions,
   DeleteRegistrationButton,
   DeleteJamaahButton,
+  AdminPaymentManager,
 } from '@/components/admin'
 import Link from 'next/link'
 import {
@@ -595,62 +596,14 @@ export default async function GroupDetailPage({ params }: PageProps) {
         </div>
       </div>
 
-      {/* Pembayaran */}
-      {payments.length > 0 && (
-        <div className="bg-white border border-[var(--border)] rounded-xl shadow-xs overflow-hidden">
-          <div className="px-5 py-3.5 bg-slate-50 border-b border-[var(--border)] flex items-center justify-between">
-            <h3 className="text-sm font-bold text-[var(--text-primary)] flex items-center gap-2">
-              <CreditCard className="w-4 h-4 text-emerald-700" />
-              Bukti Pembayaran & Verifikasi Keuangan
-            </h3>
-            <span className="text-xs text-[var(--text-muted)]">
-              {payments.length} transaksi tercatat
-            </span>
-          </div>
-          <div className="divide-y divide-[var(--border)]">
-            {payments.map((payment) => (
-              <div
-                key={payment.id as string}
-                className="p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4"
-              >
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-semibold px-2 py-0.5 rounded bg-slate-100 text-slate-700 uppercase">
-                      {payment.payment_type === 'full' ? 'Pelunasan Penuh' : 'Down Payment (DP)'}
-                    </span>
-                    <PaymentStatusBadge status={payment.verification_status as PaymentStatus} />
-                  </div>
-                  <p className="text-xl font-extrabold text-[var(--text-primary)] mt-1 font-mono">
-                    {formatCurrency(payment.amount as number)}
-                  </p>
-                  {payment.payment_date != null && (
-                    <p className="text-xs text-[var(--text-muted)] mt-0.5">
-                      Tanggal Bayar: {formatDate(String(payment.payment_date))}
-                    </p>
-                  )}
-                  {payment.drive_web_view_url != null && String(payment.drive_web_view_url) && (
-                    <a
-                      href={String(payment.drive_web_view_url)}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="mt-2 text-xs text-[var(--primary)] hover:underline inline-flex items-center gap-1 font-semibold"
-                    >
-                      <ExternalLink className="w-3.5 h-3.5" />
-                      Lihat Bukti Transfer di Google Drive
-                    </a>
-                  )}
-                </div>
-
-                <PaymentVerificationActions
-                  paymentId={payment.id as string}
-                  currentStatus={payment.verification_status as PaymentStatus}
-                  verificationNote={payment.verification_note as string}
-                />
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+      {/* Pembayaran & Keuangan */}
+      <AdminPaymentManager
+        groupId={group.id as string}
+        registrationCode={group.registration_code as string}
+        packageData={group.package as any}
+        jamaahCount={jamaahs.length}
+        initialPayments={payments}
+      />
     </div>
   )
 }

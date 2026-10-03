@@ -186,8 +186,11 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // If this is payment proof, also update the payments table record
+    // If this is payment proof, also update or create the payments table record
     const paymentId = formData.get('paymentId') as string | null
+    const paymentType = (formData.get('paymentType') as string | null) || 'pelunasan'
+    const paymentAmount = Number(formData.get('amount')) || 0
+
     if (docType === 'bukti_bayar') {
       try {
         if (paymentId) {
@@ -200,15 +203,17 @@ export async function POST(req: NextRequest) {
             })
             .eq('id', paymentId)
         } else {
-          const { data: latestPayment } = await supabase
+          // Look for an existing pending / proof_uploaded payment
+          const { data: unverifiedPayment } = await supabase
             .from('payments')
-            .select('id')
+            .select('id, verification_status')
             .eq('group_id', jamaah.group_id)
+            .neq('verification_status', 'verified')
             .order('created_at', { ascending: false })
             .limit(1)
             .maybeSingle()
 
-          if (latestPayment) {
+          if (unverifiedPayment) {
             await supabase
               .from('payments')
               .update({
@@ -216,7 +221,20 @@ export async function POST(req: NextRequest) {
                 drive_web_view_url: finalWebViewLink,
                 verification_status: 'proof_uploaded',
               })
-              .eq('id', latestPayment.id)
+              .eq('id', unverifiedPayment.id)
+          } else {
+            // All previous payments are already verified (or none existed), create a new payment record (e.g. Pelunasan)
+            await supabase
+              .from('payments')
+              .insert({
+                group_id: jamaah.group_id,
+                payment_type: paymentType,
+                amount: paymentAmount,
+                drive_file_id: finalDriveFileId,
+                drive_web_view_url: finalWebViewLink,
+                verification_status: 'proof_uploaded',
+                payment_date: new Date().toISOString().split('T')[0],
+              })
           }
         }
       } catch (pErr) {

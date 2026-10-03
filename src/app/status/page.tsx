@@ -59,6 +59,8 @@ import {
   ShieldAlert,
   Lock,
   KeyRound,
+  CreditCard,
+  Wallet,
 } from 'lucide-react'
 import Link from 'next/link'
 import { COUNTRIES } from '@/lib/countries'
@@ -129,10 +131,13 @@ function StatusContent() {
   // Quick document upload state
   const [uploadingDocKey, setUploadingDocKey] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const [bankAccounts, setBankAccounts] = useState<any[]>([])
   const [currentUploadTarget, setCurrentUploadTarget] = useState<{
     jamaahId: string
     docType: DocumentType
     paymentId?: string
+    paymentType?: 'dp' | 'pelunasan' | 'full'
+    amount?: number
   } | null>(null)
 
   // Security Gate State
@@ -245,6 +250,7 @@ function StatusContent() {
       setGroup(fetchedGroup)
       setJamaahs(fetchedJamaahs)
       setPayments((data.payments ?? []) as Payment[])
+      if (data.banks && Array.isArray(data.banks)) setBankAccounts(data.banks)
 
       // Save code and token to device history so this device is permanently trusted
       if (fetchedGroup.registration_code) {
@@ -307,6 +313,7 @@ function StatusContent() {
       setGroup(fetchedGroup)
       setJamaahs(fetchedJamaahs)
       setPayments((data.payments ?? []) as Payment[])
+      if (data.banks && Array.isArray(data.banks)) setBankAccounts(data.banks)
 
       if (fetchedGroup.registration_code) {
         const pic = getGroupPic(fetchedGroup)
@@ -505,8 +512,14 @@ function StatusContent() {
   }
 
   // --- QUICK DOCUMENT UPLOAD HANDLERS ---
-  function triggerDocumentUpload(jamaahId: string, docType: DocumentType, paymentId?: string) {
-    setCurrentUploadTarget({ jamaahId, docType, paymentId })
+  function triggerDocumentUpload(
+    jamaahId: string,
+    docType: DocumentType,
+    paymentId?: string,
+    paymentType?: 'dp' | 'pelunasan' | 'full',
+    amount?: number
+  ) {
+    setCurrentUploadTarget({ jamaahId, docType, paymentId, paymentType, amount })
     if (fileInputRef.current) {
       fileInputRef.current.value = ''
       fileInputRef.current.click()
@@ -517,8 +530,8 @@ function StatusContent() {
     const file = e.target.files?.[0]
     if (!file || !currentUploadTarget) return
 
-    const { jamaahId, docType, paymentId } = currentUploadTarget
-    const targetKey = `${jamaahId}-${docType}`
+    const { jamaahId, docType, paymentId, paymentType, amount } = currentUploadTarget
+    const targetKey = paymentId ? `payment-${paymentId}` : `${jamaahId}-${docType}`
     setUploadingDocKey(targetKey)
 
     try {
@@ -527,6 +540,8 @@ function StatusContent() {
       formData.append('jamaahId', jamaahId)
       formData.append('docType', docType)
       if (paymentId) formData.append('paymentId', paymentId)
+      if (paymentType) formData.append('paymentType', paymentType)
+      if (amount) formData.append('amount', String(amount))
 
       const res = await fetch('/api/upload', {
         method: 'POST',
@@ -1463,85 +1478,396 @@ function StatusContent() {
               </div>
             )}
 
-            {/* Payment Section */}
-            {payments.length > 0 && (
-              <div className="bg-white border border-[var(--border)] rounded-[var(--radius-lg)] overflow-hidden shadow-xs">
-                <div className="px-5 py-3.5 bg-[var(--surface)] border-b border-[var(--border)] flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-semibold text-[var(--text-primary)]">Informasi Pembayaran Down Payment (DP)</p>
-                    <p className="text-xs text-[var(--text-muted)] mt-0.5">
-                      DP Rp 5.000.000 per jamaah untuk mengamankan nomor porsi keberangkatan.
-                    </p>
+            {/* ============================================================
+                PAYMENT LIFECYCLE & FINANCIAL DETECTOR SECTION
+                ============================================================ */}
+            {(() => {
+              const jamaahCount = Math.max(1, jamaahs.length)
+              const packagePrice = group?.package?.price ? Number(group.package.price) : 37200000
+              const dpPerPerson = group?.package?.dp_amount ? Number(group.package.dp_amount) : 5000000
+              const totalBill = packagePrice * jamaahCount
+              const totalMinDp = dpPerPerson * jamaahCount
+
+              // Payments calculations
+              const verifiedPayments = payments.filter((p) => p.verification_status === 'verified')
+              const verifiedPaid = verifiedPayments.reduce((sum, p) => sum + Number(p.amount), 0)
+              const pendingPayments = payments.filter(
+                (p) => p.verification_status === 'proof_uploaded' || (p.verification_status === 'pending' && Boolean(p.drive_web_view_url))
+              )
+              const pendingAmount = pendingPayments.reduce((sum, p) => sum + Number(p.amount), 0)
+              const remainingBill = Math.max(0, totalBill - verifiedPaid)
+
+              // Status classification
+              const isFullyPaid = verifiedPaid >= totalBill && totalBill > 0
+              const isDpVerified = verifiedPaid >= totalMinDp && !isFullyPaid
+              const hasPendingProof = pendingPayments.length > 0
+              const hasUploadedAnyProof = payments.some((p) => Boolean(p.drive_web_view_url))
+              const isOnlyRegistered = verifiedPaid === 0 && !hasPendingProof && !hasUploadedAnyProof
+
+              // Active banks
+              const displayBanks = bankAccounts.length > 0
+                ? bankAccounts.filter((b: any) => b.isActive !== false)
+                : [
+                    { id: 'bsi', bankName: 'Bank Syariah Indonesia (BSI)', accountNumber: '7123456789', accountName: 'Panitia Umrah 100 Th Gontor' },
+                    { id: 'mandiri', bankName: 'Bank Mandiri', accountNumber: '1440019283746', accountName: 'Yayasan Pemeliharaan Perluasan PMDG' },
+                  ]
+
+              return (
+                <div className="bg-white border border-[var(--border)] rounded-[var(--radius-lg)] overflow-hidden shadow-xs space-y-0">
+                  {/* Card Header */}
+                  <div className="px-5 py-4 bg-slate-50 border-b border-[var(--border)] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <CreditCard className="w-4 h-4 text-emerald-700" />
+                        <h2 className="text-sm font-bold text-[var(--text-primary)]">
+                          Informasi Keuangan & Status Pembayaran
+                        </h2>
+                      </div>
+                      <p className="text-xs text-[var(--text-muted)] mt-0.5">
+                        Paket: <span className="font-semibold text-slate-800">{group?.package?.name || 'Paket Umrah 100 Tahun Gontor'}</span> ({jamaahCount} Jamaah Terdaftar)
+                      </p>
+                    </div>
+
+                    <div>
+                      {isFullyPaid ? (
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                          LUNAS SEPENUHNYA
+                        </span>
+                      ) : isDpVerified ? (
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-blue-100 text-blue-800 border border-blue-300">
+                          <ShieldCheck className="w-3.5 h-3.5 text-blue-600" />
+                          DP TERVERIFIKASI (PORSI AMAN)
+                        </span>
+                      ) : hasPendingProof ? (
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-800 border border-amber-300">
+                          <Clock className="w-3.5 h-3.5 text-amber-600 animate-spin" />
+                          MENUNGGU VERIFIKASI ADMIN
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-rose-100 text-rose-800 border border-rose-300">
+                          <AlertTriangle className="w-3.5 h-3.5 text-rose-600" />
+                          BELUM BAYAR (HANYA MENDAFTAR)
+                        </span>
+                      )}
+                    </div>
                   </div>
-                </div>
-                <div className="divide-y divide-[var(--border)]">
-                  {payments.map((payment) => {
-                    const isUploadingProof = uploadingDocKey === `${jamaahs[0]?.id}-bukti_bayar`
-                    return (
-                      <div key={payment.id} className="p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+
+                  {/* Financial 3-Card Metrics */}
+                  <div className="p-5 grid grid-cols-1 sm:grid-cols-3 gap-4 border-b border-[var(--border)] bg-white">
+                    {/* Metric 1 */}
+                    <div className="p-4 rounded-xl bg-slate-50 border border-slate-200">
+                      <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
+                        Total Biaya Paket ({jamaahCount} Jamaah)
+                      </p>
+                      <p className="text-xl font-extrabold text-slate-900 mt-1 font-mono">
+                        {formatCurrency(totalBill)}
+                      </p>
+                      <p className="text-[11px] text-slate-500 mt-0.5">
+                        {jamaahCount} x {formatCurrency(packagePrice)}
+                      </p>
+                    </div>
+
+                    {/* Metric 2 */}
+                    <div className="p-4 rounded-xl bg-emerald-50/60 border border-emerald-200">
+                      <p className="text-[11px] font-semibold text-emerald-800 uppercase tracking-wider flex items-center justify-between">
+                        <span>Sudah Terverifikasi</span>
+                        {isFullyPaid && <Check className="w-3.5 h-3.5 text-emerald-600" />}
+                      </p>
+                      <p className="text-xl font-extrabold text-emerald-900 mt-1 font-mono">
+                        {formatCurrency(verifiedPaid)}
+                      </p>
+                      <p className="text-[11px] text-emerald-700 mt-0.5">
+                        {verifiedPaid > 0 ? '✓ Pembayaran masuk & diverifikasi' : 'Belum ada dana terverifikasi'}
+                      </p>
+                    </div>
+
+                    {/* Metric 3 */}
+                    <div className={`p-4 rounded-xl border ${remainingBill === 0 ? 'bg-slate-50 border-slate-200' : 'bg-rose-50/60 border-rose-200'}`}>
+                      <p className="text-[11px] font-semibold text-rose-800 uppercase tracking-wider">
+                        Sisa Tagihan Pelunasan
+                      </p>
+                      <p className="text-xl font-extrabold text-rose-900 mt-1 font-mono">
+                        {formatCurrency(remainingBill)}
+                      </p>
+                      <p className="text-[11px] text-rose-700 mt-0.5">
+                        {remainingBill === 0 ? '✓ Pembayaran telah lunas' : 'Wajib dilunasi sebelum keberangkatan'}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Context Banner & Action Based on State */}
+                  <div className="p-5 space-y-4">
+                    {/* STATE 1: LUNAS */}
+                    {isFullyPaid && (
+                      <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl flex items-start gap-3.5">
+                        <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
                         <div>
-                          <p className="text-sm font-semibold text-[var(--text-primary)]">
-                            {payment.payment_type === 'full' ? 'Pembayaran Lunas' : 'Down Payment (DP)'}
+                          <p className="text-sm font-bold text-emerald-950">
+                            Alhamdulillah! Pembayaran Paket Umrah Anda Telah LUNAS
                           </p>
-                          <p className="text-xl font-bold text-slate-900 mt-0.5">
-                            {formatCurrency(payment.amount)}
+                          <p className="text-xs text-emerald-800 mt-1 leading-relaxed">
+                            Seluruh kewajiban biaya paket untuk {jamaahCount} jamaah telah terselesaikan 100%. Tim panitia akan menghubungi Anda melalui nomor WhatsApp PIC untuk koordinasi perlengkapan ibadah, manasik, dan briefing keberangkatan.
                           </p>
-                          {payment.payment_date && (
-                            <p className="text-xs text-[var(--text-muted)] mt-0.5">
-                              Tanggal Transfer: {formatDate(payment.payment_date)}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* STATE 2: DP TERVERIFIKASI (BELUM LUNAS) */}
+                    {isDpVerified && (
+                      <div className="p-4 bg-blue-50 border border-blue-200 rounded-xl space-y-3">
+                        <div className="flex items-start gap-3.5">
+                          <ShieldCheck className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
+                          <div>
+                            <p className="text-sm font-bold text-blue-950">
+                              DP Terverifikasi: Nomor Porsi dan Kursi Keberangkatan Anda SUDAH AMAN
                             </p>
-                          )}
-                          <div className="mt-2 flex items-center gap-2">
-                            <PaymentStatusBadge status={payment.verification_status} />
-                            {payment.verification_note && (
-                              <span className="text-xs text-amber-800 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
-                                Catatan: {payment.verification_note}
-                              </span>
-                            )}
+                            <p className="text-xs text-blue-800 mt-1 leading-relaxed">
+                              Pembayaran Down Payment (DP) sebesar <strong>{formatCurrency(verifiedPaid)}</strong> telah diverifikasi panitia. Sisa tagihan pelunasan sebesar <strong>{formatCurrency(remainingBill)}</strong> dapat dibayarkan sebelum batas waktu pelunasan.
+                            </p>
                           </div>
                         </div>
 
-                        {/* Action Bukti Transfer */}
-                        <div className="flex items-center gap-2 flex-wrap">
-                          {payment.drive_web_view_url && (
-                            <a
-                              href={payment.drive_web_view_url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="px-3 py-1.5 text-xs font-semibold text-emerald-800 bg-emerald-50 border border-emerald-300 rounded-md hover:bg-emerald-100 transition-colors inline-flex items-center gap-1.5"
-                            >
-                              <ExternalLink className="w-3.5 h-3.5" />
-                              Lihat Bukti Transfer
-                            </a>
-                          )}
-
-                          {payment.verification_status !== 'verified' && (
-                            <button
-                              type="button"
-                              disabled={isUploadingProof}
-                              onClick={() => triggerDocumentUpload(jamaahs[0]?.id, 'bukti_bayar', payment.id)}
-                              className="px-3.5 py-1.5 text-xs font-semibold text-white bg-emerald-700 rounded-md hover:bg-emerald-800 transition-colors inline-flex items-center gap-1.5 shadow-xs"
-                            >
-                              {isUploadingProof ? (
-                                <>
-                                  <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                                  Mengunggah...
-                                </>
-                              ) : (
-                                <>
-                                  <Upload className="w-3.5 h-3.5" />
-                                  {payment.drive_web_view_url ? 'Ganti Bukti Transfer' : 'Unggah Bukti Transfer'}
-                                </>
-                              )}
-                            </button>
-                          )}
+                        {/* Button Pelunasan */}
+                        <div className="pt-2 border-t border-blue-200/80 flex flex-wrap items-center justify-between gap-3">
+                          <div className="text-xs text-blue-900">
+                            Sudah melakukan transfer pelunasan? Unggah bukti transfer tahap 2 di sini:
+                          </div>
+                          <button
+                            type="button"
+                            disabled={uploadingDocKey === 'payment-pelunasan'}
+                            onClick={() => triggerDocumentUpload(jamaahs[0]?.id, 'bukti_bayar', undefined, 'pelunasan', remainingBill)}
+                            className="px-4 py-2 text-xs font-bold text-white bg-blue-700 hover:bg-blue-800 rounded-lg shadow-xs transition-colors inline-flex items-center gap-2 cursor-pointer"
+                          >
+                            {uploadingDocKey === 'payment-pelunasan' ? (
+                              <>
+                                <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                Mengunggah Bukti Pelunasan...
+                              </>
+                            ) : (
+                              <>
+                                <Upload className="w-3.5 h-3.5" />
+                                Unggah Bukti Pelunasan ({formatCurrency(remainingBill)})
+                              </>
+                            )}
+                          </button>
                         </div>
                       </div>
-                    )
-                  })}
+                    )}
+
+                    {/* STATE 3: MENUNGGU VERIFIKASI ADMIN */}
+                    {hasPendingProof && (
+                      <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-3.5">
+                        <Clock className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                        <div>
+                          <p className="text-sm font-bold text-amber-950">
+                            Bukti Pembayaran Sedang Diverifikasi oleh Tim Keuangan
+                          </p>
+                          <p className="text-xs text-amber-800 mt-1 leading-relaxed">
+                            Bukti transfer Anda sudah diterima oleh sistem. Panitia sedang mencocokkan mutasi rekening bank resmi. Mohon menunggu, halaman ini akan otomatis diperbarui setelah verifikasi selesai.
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* STATE 4: HANYA MENDAFTAR SAJA (BELUM BAYAR) */}
+                    {isOnlyRegistered && (
+                      <div className="p-4 bg-rose-50 border border-rose-200 rounded-xl space-y-3">
+                        <div className="flex items-start gap-3.5">
+                          <AlertTriangle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
+                          <div>
+                            <p className="text-sm font-bold text-rose-950">
+                              Status: Hanya Mendaftar Saja (Belum Melakukan Pembayaran)
+                            </p>
+                            <p className="text-xs text-rose-800 mt-1 leading-relaxed">
+                              Data pendaftaran Anda telah tersimpan dengan aman, namun nomor porsi dan kursi keberangkatan <strong>belum terkunci</strong> sebelum pembayaran DP atau Pelunasan diterima dan diverifikasi oleh panitia.
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Choice of Payments */}
+                        <div className="pt-2 border-t border-rose-200/80 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          {/* Option 1: DP */}
+                          <div className="p-3 bg-white rounded-lg border border-rose-200 flex flex-col justify-between">
+                            <div>
+                              <span className="text-[10px] font-bold text-blue-700 uppercase bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
+                                Opsi 1: Amankan Porsi Dulu
+                              </span>
+                              <p className="text-xs font-bold text-slate-800 mt-1.5">
+                                Bayar DP Minimal
+                              </p>
+                              <p className="text-base font-extrabold text-slate-900 font-mono mt-0.5">
+                                {formatCurrency(totalMinDp)}
+                              </p>
+                              <p className="text-[10px] text-slate-500">
+                                ({formatCurrency(dpPerPerson)} / jamaah x {jamaahCount} jamaah)
+                              </p>
+                            </div>
+                            <button
+                              type="button"
+                              disabled={uploadingDocKey === `${jamaahs[0]?.id}-bukti_bayar`}
+                              onClick={() => triggerDocumentUpload(jamaahs[0]?.id, 'bukti_bayar', undefined, 'dp', totalMinDp)}
+                              className="mt-3 w-full py-2 px-3 text-xs font-bold text-white bg-emerald-700 hover:bg-emerald-800 rounded-lg shadow-xs transition-colors inline-flex items-center justify-center gap-1.5 cursor-pointer"
+                            >
+                              <Upload className="w-3.5 h-3.5" />
+                              Unggah Bukti Bayar DP
+                            </button>
+                          </div>
+
+                          {/* Option 2: Langsung Lunas */}
+                          <div className="p-3 bg-white rounded-lg border border-rose-200 flex flex-col justify-between">
+                            <div>
+                              <span className="text-[10px] font-bold text-emerald-700 uppercase bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                                Opsi 2: Praktis & Bebas Beban
+                              </span>
+                              <p className="text-xs font-bold text-slate-800 mt-1.5">
+                                Bayar Langsung Lunas
+                              </p>
+                              <p className="text-base font-extrabold text-emerald-700 font-mono mt-0.5">
+                                {formatCurrency(totalBill)}
+                              </p>
+                              <p className="text-[10px] text-slate-500">
+                                (Pelunasan 100% untuk {jamaahCount} jamaah)
+                              </p>
+                            </div>
+                            <button
+                              type="button"
+                              disabled={uploadingDocKey === `${jamaahs[0]?.id}-bukti_bayar`}
+                              onClick={() => triggerDocumentUpload(jamaahs[0]?.id, 'bukti_bayar', undefined, 'full', totalBill)}
+                              className="mt-3 w-full py-2 px-3 text-xs font-bold text-white bg-slate-900 hover:bg-slate-800 rounded-lg shadow-xs transition-colors inline-flex items-center justify-center gap-1.5 cursor-pointer"
+                            >
+                              <Upload className="w-3.5 h-3.5" />
+                              Unggah Bukti Bayar Lunas
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* REKENING PEMBAYARAN RESMI PANITIA */}
+                    {!isFullyPaid && (
+                      <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-2.5">
+                        <div className="flex items-center gap-2">
+                          <Wallet className="w-4 h-4 text-emerald-700" />
+                          <p className="text-xs font-bold text-slate-800 uppercase tracking-wider">
+                            Rekening Resmi Pembayaran Panitia Umrah 100 Tahun Gontor
+                          </p>
+                        </div>
+                        <p className="text-xs text-slate-500">
+                          Pastikan transfer hanya ditujukan ke nomor rekening resmi panitia di bawah ini. Harap cantumkan kode pendaftaran <strong>{group?.registration_code}</strong> pada berita transfer.
+                        </p>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                          {displayBanks.map((bank: any) => (
+                            <div
+                              key={bank.id || bank.bankName}
+                              className="p-3 bg-white rounded-lg border border-slate-200 shadow-2xs space-y-1"
+                            >
+                              <p className="text-xs font-bold text-slate-700">{bank.bankName}</p>
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="text-sm font-mono font-bold text-emerald-800">
+                                  {bank.accountNumber}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    navigator.clipboard.writeText(bank.accountNumber)
+                                    alert(`Nomor rekening ${bank.accountNumber} berhasil disalin!`)
+                                  }}
+                                  className="text-[11px] text-[var(--primary)] hover:underline inline-flex items-center gap-1 font-semibold"
+                                >
+                                  <Copy className="w-3 h-3" />
+                                  Salin
+                                </button>
+                              </div>
+                              <p className="text-[11px] text-slate-500">a.n. {bank.accountName}</p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* RIWAYAT TRANSAKSI TERCATAT */}
+                    {payments.length > 0 && (
+                      <div className="pt-3 border-t border-slate-200 space-y-3">
+                        <p className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+                          Riwayat Catatan Transaksi ({payments.length})
+                        </p>
+                        <div className="divide-y divide-slate-200 border border-slate-200 rounded-lg overflow-hidden bg-white">
+                          {payments.map((payment) => {
+                            const isThisUploading = uploadingDocKey === `payment-${payment.id}`
+                            return (
+                              <div key={payment.id} className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                                <div>
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-xs font-bold px-2 py-0.5 rounded bg-slate-100 text-slate-800 uppercase">
+                                      {payment.payment_type === 'full'
+                                        ? 'Pelunasan Penuh'
+                                        : payment.payment_type === 'pelunasan'
+                                        ? 'Pelunasan (Tahap 2)'
+                                        : 'Down Payment (DP)'}
+                                    </span>
+                                    <PaymentStatusBadge status={payment.verification_status} />
+                                  </div>
+                                  <p className="text-base font-extrabold text-slate-900 mt-1 font-mono">
+                                    {formatCurrency(payment.amount)}
+                                  </p>
+                                  {payment.payment_date && (
+                                    <p className="text-[11px] text-slate-500 mt-0.5">
+                                      Tanggal Transaksi: {formatDate(payment.payment_date)}
+                                    </p>
+                                  )}
+                                  {payment.verification_note && (
+                                    <p className="text-xs text-amber-800 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 mt-1.5 inline-block">
+                                      Catatan Panitia: {payment.verification_note}
+                                    </p>
+                                  )}
+                                </div>
+
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  {payment.drive_web_view_url && (
+                                    <a
+                                      href={payment.drive_web_view_url}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="px-3 py-1.5 text-xs font-semibold text-emerald-800 bg-emerald-50 border border-emerald-300 rounded-md hover:bg-emerald-100 transition-colors inline-flex items-center gap-1.5"
+                                    >
+                                      <ExternalLink className="w-3.5 h-3.5" />
+                                      Lihat Bukti Transfer
+                                    </a>
+                                  )}
+
+                                  {payment.verification_status !== 'verified' && (
+                                    <button
+                                      type="button"
+                                      disabled={isThisUploading}
+                                      onClick={() => triggerDocumentUpload(jamaahs[0]?.id, 'bukti_bayar', payment.id)}
+                                      className="px-3.5 py-1.5 text-xs font-semibold text-white bg-emerald-700 rounded-md hover:bg-emerald-800 transition-colors inline-flex items-center gap-1.5 shadow-xs cursor-pointer"
+                                    >
+                                      {isThisUploading ? (
+                                        <>
+                                          <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                          Mengunggah...
+                                        </>
+                                      ) : (
+                                        <>
+                                          <Upload className="w-3.5 h-3.5" />
+                                          {payment.drive_web_view_url ? 'Ganti Bukti' : 'Unggah Bukti'}
+                                        </>
+                                      )}
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
-            )}
+              )
+            })()}
           </div>
         )}
 

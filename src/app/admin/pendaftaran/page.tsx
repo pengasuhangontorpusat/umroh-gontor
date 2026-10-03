@@ -1,6 +1,6 @@
 import { createServiceClient } from '@/lib/supabase/server'
 import { GroupStatusBadge } from '@/components/ui/StatusBadge'
-import { formatDate, maskNik, getGroupPic } from '@/lib/utils'
+import { formatDate, maskNik, getGroupPic, formatCurrency } from '@/lib/utils'
 import { DeleteRegistrationButton, DeleteJamaahButton } from '@/components/admin'
 import Link from 'next/link'
 import { Search, Users, ClipboardList } from 'lucide-react'
@@ -9,6 +9,7 @@ interface PageProps {
   searchParams: Promise<{
     view?: 'groups' | 'jamaahs'
     status?: string
+    payment_status?: string
     departure?: string
     q?: string
     page?: string
@@ -32,7 +33,9 @@ export default async function PendaftaranPage({ searchParams }: PageProps) {
       `
       *,
       departure_point:departure_points(name),
+      package:packages(id, name, price, dp_amount),
       pic_jamaah:jamaahs!fk_pic_jamaah(full_name, phone),
+      payments:payments(id, payment_type, amount, verification_status, drive_file_id),
       _count:jamaahs!jamaahs_group_id_fkey(count)
     `,
       { count: 'exact' }
@@ -75,7 +78,7 @@ export default async function PendaftaranPage({ searchParams }: PageProps) {
   const totalPages = Math.ceil(activeCount / PAGE_SIZE)
 
   const GROUP_STATUSES = [
-    { value: '', label: 'Semua Status' },
+    { value: '', label: 'Semua Status Berkas' },
     { value: 'submitted', label: 'Terkirim' },
     { value: 'under_review', label: 'Dalam Pemeriksaan' },
     { value: 'revision_required', label: 'Perlu Revisi' },
@@ -83,6 +86,41 @@ export default async function PendaftaranPage({ searchParams }: PageProps) {
     { value: 'ready_for_departure', label: 'Siap Berangkat' },
     { value: 'completed', label: 'Selesai' },
   ]
+
+  const PAYMENT_STATUSES = [
+    { value: '', label: 'Semua Status Pembayaran' },
+    { value: 'belum_bayar', label: 'Belum Bayar (Daftar Saja)' },
+    { value: 'menunggu_verifikasi', label: 'Perlu Cek Bukti Transfer' },
+    { value: 'dp', label: 'DP Masuk (Belum Lunas)' },
+    { value: 'lunas', label: 'Lunas Sepenuhnya' },
+  ]
+
+  let displayedGroups = (groups as Record<string, unknown>[]) || []
+  if (params.payment_status) {
+    displayedGroups = displayedGroups.filter((g) => {
+      const gPayments = (g.payments as any[]) || []
+      const jCount = Array.isArray(g._count)
+        ? (g._count[0]?.count ?? 1)
+        : (((g._count as Record<string, unknown>)?.count as number) ?? 1)
+      const pkg = g.package as any
+      const pkgPrice = pkg?.price ? Number(pkg.price) : 37200000
+      const dpPrice = pkg?.dp_amount ? Number(pkg.dp_amount) : 5000000
+      const bill = pkgPrice * jCount
+      const minDp = dpPrice * jCount
+      const verified = gPayments
+        .filter((p) => p.verification_status === 'verified')
+        .reduce((sum, p) => sum + Number(p.amount), 0)
+      const hasProof = gPayments.some(
+        (p) => p.verification_status === 'proof_uploaded' || (p.verification_status === 'pending' && Boolean(p.drive_file_id))
+      )
+
+      if (params.payment_status === 'lunas') return verified >= bill && bill > 0
+      if (params.payment_status === 'dp') return verified >= minDp && verified < bill
+      if (params.payment_status === 'menunggu_verifikasi') return hasProof && verified < bill
+      if (params.payment_status === 'belum_bayar') return verified === 0 && !hasProof
+      return true
+    })
+  }
 
   return (
     <div className="space-y-5">
@@ -137,17 +175,31 @@ export default async function PendaftaranPage({ searchParams }: PageProps) {
           </div>
 
           {view === 'groups' && (
-            <select
-              name="status"
-              defaultValue={params.status ?? ''}
-              className="h-8 px-2.5 text-sm border border-[var(--border)] rounded-[var(--radius-md)] focus:outline-none focus:border-[var(--primary)] bg-white"
-            >
-              {GROUP_STATUSES.map((s) => (
-                <option key={s.value} value={s.value}>
-                  {s.label}
-                </option>
-              ))}
-            </select>
+            <>
+              <select
+                name="status"
+                defaultValue={params.status ?? ''}
+                className="h-8 px-2.5 text-sm border border-[var(--border)] rounded-[var(--radius-md)] focus:outline-none focus:border-[var(--primary)] bg-white"
+              >
+                {GROUP_STATUSES.map((s) => (
+                  <option key={s.value} value={s.value}>
+                    {s.label}
+                  </option>
+                ))}
+              </select>
+
+              <select
+                name="payment_status"
+                defaultValue={params.payment_status ?? ''}
+                className="h-8 px-2.5 text-sm border border-[var(--border)] rounded-[var(--radius-md)] focus:outline-none focus:border-[var(--primary)] bg-white font-medium text-slate-700"
+              >
+                {PAYMENT_STATUSES.map((s) => (
+                  <option key={s.value} value={s.value}>
+                    {s.label}
+                  </option>
+                ))}
+              </select>
+            </>
           )}
 
           <button
@@ -156,7 +208,7 @@ export default async function PendaftaranPage({ searchParams }: PageProps) {
           >
             Filter
           </button>
-          {Boolean(params.q || params.status) && (
+          {Boolean(params.q || params.status || params.payment_status) && (
             <Link
               href={`/admin/pendaftaran?view=${view}`}
               className="h-8 px-2.5 text-xs flex items-center text-[var(--text-muted)] hover:text-[var(--text-primary)]"
@@ -171,7 +223,7 @@ export default async function PendaftaranPage({ searchParams }: PageProps) {
       {view === 'groups' ? (
         /* TABLE GROUPS */
         <div className="bg-white border border-[var(--border)] rounded-[var(--radius-lg)] overflow-hidden shadow-sm">
-          {!groups?.length ? (
+          {!displayedGroups?.length ? (
             <div className="py-16 text-center">
               <p className="text-sm text-[var(--text-muted)]">Tidak ada pendaftaran ditemukan.</p>
             </div>
@@ -184,13 +236,14 @@ export default async function PendaftaranPage({ searchParams }: PageProps) {
                     <th className="text-left px-4 py-3 text-xs font-semibold text-[var(--text-muted)]">PIC / Kontak</th>
                     <th className="text-center px-4 py-3 text-xs font-semibold text-[var(--text-muted)]">Jamaah</th>
                     <th className="text-left px-4 py-3 text-xs font-semibold text-[var(--text-muted)]">Keberangkatan</th>
-                    <th className="text-left px-4 py-3 text-xs font-semibold text-[var(--text-muted)]">Status</th>
+                    <th className="text-left px-4 py-3 text-xs font-semibold text-[var(--text-muted)]">Status Berkas</th>
+                    <th className="text-left px-4 py-3 text-xs font-semibold text-[var(--text-muted)]">Status Pembayaran</th>
                     <th className="text-left px-4 py-3 text-xs font-semibold text-[var(--text-muted)]">Tanggal Daftar</th>
                     <th className="text-center px-4 py-3 text-xs font-semibold text-[var(--text-muted)]">Aksi</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[var(--border)]">
-                  {groups.map((group: Record<string, unknown>) => (
+                  {displayedGroups.map((group: Record<string, unknown>) => (
                     <tr key={group.id as string} className="hover:bg-slate-50 transition-colors">
                       <td className="px-4 py-3">
                         <Link
@@ -242,6 +295,57 @@ export default async function PendaftaranPage({ searchParams }: PageProps) {
                       </td>
                       <td className="px-4 py-3">
                         <GroupStatusBadge status={group.group_status as never} />
+                      </td>
+                      <td className="px-4 py-3">
+                        {(() => {
+                          const gPayments = (group.payments as any[]) || []
+                          const count = Array.isArray(group._count)
+                            ? (group._count[0]?.count ?? 1)
+                            : (((group._count as Record<string, unknown>)?.count as number) ?? 1)
+                          const pkg = group.package as any
+                          const pkgPrice = pkg?.price ? Number(pkg.price) : 37200000
+                          const dpPrice = pkg?.dp_amount ? Number(pkg.dp_amount) : 5000000
+                          const bill = pkgPrice * count
+                          const minDp = dpPrice * count
+                          const verified = gPayments
+                            .filter((p) => p.verification_status === 'verified')
+                            .reduce((sum, p) => sum + Number(p.amount), 0)
+                          const hasProof = gPayments.some(
+                            (p) => p.verification_status === 'proof_uploaded' || (p.verification_status === 'pending' && Boolean(p.drive_file_id))
+                          )
+
+                          if (verified >= bill && bill > 0) {
+                            return (
+                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                                Lunas (100%)
+                              </span>
+                            )
+                          }
+                          if (verified >= minDp) {
+                            return (
+                              <div className="space-y-0.5">
+                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-blue-100 text-blue-800 border border-blue-300">
+                                  DP Masuk
+                                </span>
+                                <p className="text-[10px] text-slate-500 font-mono">
+                                  Sisa: {formatCurrency(bill - verified)}
+                                </p>
+                              </div>
+                            )
+                          }
+                          if (hasProof) {
+                            return (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 text-amber-800 border border-amber-300 animate-pulse">
+                                Perlu Cek Bukti
+                              </span>
+                            )
+                          }
+                          return (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-rose-100 text-rose-800 border border-rose-300">
+                              Belum Bayar (Daftar Saja)
+                            </span>
+                          )
+                        })()}
                       </td>
                       <td className="px-4 py-3 text-xs text-[var(--text-muted)]">
                         {formatDate(group.created_at as string)}

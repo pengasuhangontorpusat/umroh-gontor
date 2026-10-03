@@ -115,6 +115,13 @@ export async function GET(req: NextRequest) {
       .eq('group_id', group.id)
       .order('created_at', { ascending: true })
 
+    // Query active bank accounts for user payment guidance
+    const { data: bankSetting } = await supabase
+      .from('app_settings')
+      .select('value')
+      .eq('key', 'bank_accounts')
+      .maybeSingle()
+
     // Determine actual contact phone for this registration group
     const picPhone =
       picInfo?.phone ||
@@ -214,6 +221,7 @@ export async function GET(req: NextRequest) {
       group: enrichedGroup,
       jamaahs: jamaahs || [],
       payments: payments || [],
+      banks: bankSetting?.value || [],
     })
   } catch (err) {
     console.error('[api/status] Error:', err)

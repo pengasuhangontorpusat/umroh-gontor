@@ -59,6 +59,8 @@ export async function GET() {
         'Daftarkan diri Anda atau keluarga untuk program umrah dalam rangka peringatan 100 tahun Pondok Modern Darussalam Gontor. Proses pendaftaran dirancang sesederhana mungkin.',
       heroBadge: (val.heroBadge as string) || 'Pendaftaran Resmi',
       brandLogoText: (val.brandLogoText as string) || 'G',
+      logoUrl: (val.logoUrl as string) || '',
+      bannerUrl: (val.bannerUrl as string) || '',
 
       // Footer
       footerTitle: (val.footerTitle as string) || 'Panitia Umrah 100 Tahun Gontor',
@@ -111,6 +113,8 @@ export async function POST(req: NextRequest) {
       siteSubtitle,
       heroBadge,
       brandLogoText,
+      logoUrl,
+      bannerUrl,
       footerTitle,
       footerSubtitle,
       footerCopyright,
@@ -127,6 +131,8 @@ export async function POST(req: NextRequest) {
         'Daftarkan diri Anda atau keluarga untuk program umrah dalam rangka peringatan 100 tahun Pondok Modern Darussalam Gontor. Proses pendaftaran dirancang sesederhana mungkin.',
       heroBadge: heroBadge || 'Pendaftaran Resmi',
       brandLogoText: brandLogoText || 'G',
+      logoUrl: logoUrl || '',
+      bannerUrl: bannerUrl || '',
 
       // Footer
       footerTitle: footerTitle || 'Panitia Umrah 100 Tahun Gontor',
