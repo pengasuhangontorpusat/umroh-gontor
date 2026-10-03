@@ -10,6 +10,7 @@ import { cn, isKtpRequired, calculateAge } from '@/lib/utils'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { jamaahSchema, JamaahFormValues } from '@/lib/validations'
+import { COUNTRIES } from '@/lib/countries'
 
 const GENDER_OPTIONS = [
   { value: 'male', label: 'Laki-laki' },
@@ -117,6 +118,9 @@ function MemberForm({ member, index, isFirst, canRemove, isExpanded, onToggleExp
   const hasDisability = watch('has_disability')
   const citizenshipType = watch('citizenship_type') || 'wni'
   const country = watch('country') || 'Indonesia'
+  const [isCustomCountry, setIsCustomCountry] = useState<boolean>(
+    Boolean(citizenshipType === 'wna' && country && country !== 'Indonesia' && !COUNTRIES.some((c) => c.name === country))
+  )
   const ktpRequired = birthDate ? isKtpRequired(birthDate) : false
   const age = birthDate ? calculateAge(birthDate) : null
 
@@ -341,33 +345,84 @@ function MemberForm({ member, index, isFirst, canRemove, isExpanded, onToggleExp
               </div>
 
               {citizenshipType === 'wna' && (
-                <div className="pt-2 border-t border-slate-100 flex flex-col sm:flex-row gap-3 items-center">
-                  <div className="w-full sm:w-1/2">
-                    <label className="block text-[11px] font-medium text-slate-600 mb-1">
-                      Pilih Negara Asal
-                    </label>
-                    <select
-                      value={country}
-                      onChange={(e) => {
-                        setValue('country', e.target.value)
-                        setValue('nationality', e.target.value)
-                      }}
-                      className="w-full px-2.5 py-1.5 text-xs border border-slate-300 rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-emerald-600"
-                    >
-                      <option value="Malaysia">🇲🇾 Malaysia</option>
-                      <option value="Brunei">🇧🇳 Brunei Darussalam</option>
-                      <option value="Thailand">🇹🇭 Thailand</option>
-                      <option value="Singapore">🇸🇬 Singapore</option>
-                      <option value="Saudi Arabia">🇸🇦 Saudi Arabia</option>
-                      <option value="Egypt">🇪🇬 Egypt (Mesir)</option>
-                      <option value="Australia">🇦🇺 Australia</option>
-                      <option value="United Kingdom">🇬🇧 United Kingdom</option>
-                      <option value="Lainnya">🌍 Negara Lainnya</option>
-                    </select>
+                <div className="pt-2 border-t border-slate-100 space-y-2.5">
+                  <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
+                    <div className="w-full sm:w-1/2">
+                      <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                        Pilih Negara Asal
+                      </label>
+                      <select
+                        value={isCustomCountry ? 'Lainnya' : country}
+                        onChange={(e) => {
+                          if (e.target.value === 'Lainnya') {
+                            setIsCustomCountry(true)
+                            setValue('country', '')
+                            setValue('nationality', '')
+                          } else {
+                            setIsCustomCountry(false)
+                            setValue('country', e.target.value)
+                            setValue('nationality', e.target.value)
+                          }
+                        }}
+                        className="w-full px-2.5 py-1.5 text-xs border border-slate-300 rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-emerald-600 font-medium"
+                      >
+                        <optgroup label="🌏 Asia Tenggara (ASEAN)">
+                          {COUNTRIES.filter((c) => c.group === 'Asia Tenggara').map((c) => (
+                            <option key={c.code} value={c.name}>
+                              {c.flag} {c.name}
+                            </option>
+                          ))}
+                        </optgroup>
+                        <optgroup label="🕋 Timur Tengah & Afrika">
+                          {COUNTRIES.filter((c) => c.group === 'Timur Tengah & Afrika').map((c) => (
+                            <option key={c.code} value={c.name}>
+                              {c.flag} {c.name}
+                            </option>
+                          ))}
+                        </optgroup>
+                        <optgroup label="⛩️ Asia Lainnya">
+                          {COUNTRIES.filter((c) => c.group === 'Asia Lainnya').map((c) => (
+                            <option key={c.code} value={c.name}>
+                              {c.flag} {c.name}
+                            </option>
+                          ))}
+                        </optgroup>
+                        <optgroup label="🌍 Eropa, Amerika & Oseania">
+                          {COUNTRIES.filter((c) => c.group === 'Eropa & Barat').map((c) => (
+                            <option key={c.code} value={c.name}>
+                              {c.flag} {c.name}
+                            </option>
+                          ))}
+                        </optgroup>
+                        <option value="Lainnya">✍️ Negara Lainnya (Tulis Manual)</option>
+                      </select>
+                    </div>
+                    <p className="text-[11px] text-emerald-800 flex-1 leading-snug">
+                      💡 Bagi jamaah WNA, identitas resmi yang diverifikasi adalah nomor <strong>Paspor</strong> (NIK Indonesia tidak diperlukan).
+                    </p>
                   </div>
-                  <p className="text-[11px] text-emerald-800 flex-1 leading-snug">
-                    💡 Bagi jamaah WNA, identitas resmi yang diverifikasi adalah nomor <strong>Paspor</strong> (NIK Indonesia tidak diperlukan).
-                  </p>
+
+                  {isCustomCountry && (
+                    <div className="p-3 bg-emerald-50/70 border border-emerald-300 rounded-lg space-y-1.5 animate-fadeIn">
+                      <label className="block text-xs font-semibold text-emerald-950">
+                        Tuliskan Nama Negara Asal:
+                      </label>
+                      <input
+                        type="text"
+                        value={country}
+                        onChange={(e) => {
+                          setValue('country', e.target.value)
+                          setValue('nationality', e.target.value)
+                        }}
+                        placeholder="Contoh: Afrika Selatan, Swedia, Uzbekistan"
+                        className="w-full px-3 py-1.5 text-xs border border-emerald-600 rounded-md bg-white text-slate-900 focus:outline-none focus:ring-1 focus:ring-emerald-600 font-medium placeholder:text-slate-400"
+                        required
+                      />
+                      <p className="text-[11px] text-emerald-800">
+                        Ketik nama negara asal jamaah sesuai dengan yang tertera di paspor.
+                      </p>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
