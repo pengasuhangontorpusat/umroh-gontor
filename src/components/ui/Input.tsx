@@ -8,10 +8,10 @@ interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
 }
 
 const Input = forwardRef<HTMLInputElement, InputProps>(
-  ({ className, label, error, hint, id, value, defaultValue, ...props }, ref) => {
-    // If defaultValue is provided, it's an uncontrolled input
-    // Otherwise, ensure value is never undefined so React doesn't switch from uncontrolled to controlled
-    const resolvedValue = defaultValue !== undefined ? undefined : (value ?? '')
+  ({ className, label, error, hint, id, ...props }, ref) => {
+    // Only inject resolved value if caller explicitly provided `value` prop
+    // This allows uncontrolled inputs (e.g. react-hook-form register) to be freely typed into
+    const inputProps = 'value' in props ? { ...props, value: props.value ?? '' } : props
 
     return (
       <div className="flex flex-col gap-1.5">
@@ -29,8 +29,6 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
         <input
           ref={ref}
           id={id}
-          value={resolvedValue}
-          defaultValue={defaultValue}
           className={cn(
             'h-[44px] w-full rounded-[var(--radius-md)] border border-slate-300 bg-white px-3 text-sm text-slate-900 font-medium placeholder:text-slate-400 shadow-xs',
             'transition-colors focus:outline-none focus:border-emerald-700 focus:ring-1 focus:ring-emerald-700',
@@ -38,7 +36,7 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
             error && 'border-[var(--danger)] focus:border-[var(--danger)] focus:ring-[var(--danger)]',
             className
           )}
-          {...props}
+          {...inputProps}
         />
         {error && (
           <p className="text-xs text-[var(--danger)]" role="alert">
