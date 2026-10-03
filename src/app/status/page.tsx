@@ -9,12 +9,15 @@ import {
   Payment,
   DocumentType,
   MaritalStatus,
+  GroupStatus,
 } from '@/types'
 import {
   RegistrationHistoryItem,
   getRegistrationHistory,
   saveRegistrationHistory,
   clearRegistrationHistory,
+  getRegistrationToken,
+  saveRegistrationToken,
 } from '@/contexts/RegistrationContext'
 import {
   GroupStatusBadge,
@@ -52,6 +55,10 @@ import {
   HeartPulse,
   ChevronDown,
   ChevronUp,
+  ShieldCheck,
+  ShieldAlert,
+  Lock,
+  KeyRound,
 } from 'lucide-react'
 import Link from 'next/link'
 import { COUNTRIES } from '@/lib/countries'
@@ -128,6 +135,24 @@ function StatusContent() {
     paymentId?: string
   } | null>(null)
 
+  // Security Gate State
+  const [isAuthorized, setIsAuthorized] = useState(false)
+  const [requiresVerification, setRequiresVerification] = useState(false)
+  const [verificationMeta, setVerificationMeta] = useState<{
+    code: string
+    groupType: string
+    groupStatus: GroupStatus
+    picNameHint: string
+    phoneHint: string
+    totalJamaah: number
+    packageName: string
+    departurePointName: string
+    createdAt: string
+  } | null>(null)
+  const [inputPhoneLast4, setInputPhoneLast4] = useState('')
+  const [verifyingPhone, setVerifyingPhone] = useState(false)
+  const [verificationError, setVerificationError] = useState<string | null>(null)
+
   // Registration history saved on this device
   const [deviceHistory, setDeviceHistory] = useState<RegistrationHistoryItem[]>([])
 
@@ -139,16 +164,70 @@ function StatusContent() {
     if (kode) fetchStatus(kode)
   }, [kode]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  async function fetchStatus(code: string) {
+  async function fetchStatus(code: string, explicitToken?: string) {
+    if (!code.trim()) return
     setLoading(true)
     setError(null)
+    setVerificationError(null)
+
+    // Check if token exists in device history or explicitly passed
+    const storedToken = explicitToken || getRegistrationToken(code.trim().toUpperCase())
+    const url = `/api/status?code=${encodeURIComponent(code.trim().toUpperCase())}${
+      storedToken ? `&token=${encodeURIComponent(storedToken)}` : ''
+    }`
 
     try {
-      const res = await fetch(`/api/status?code=${encodeURIComponent(code.trim().toUpperCase())}`)
+      const res = await fetch(url)
       const data = await res.json()
 
       if (!res.ok) {
+        if (data.requires_verification) {
+          setIsAuthorized(false)
+          setRequiresVerification(true)
+          setVerificationMeta({
+            code: code.trim().toUpperCase(),
+            groupType: data.group_type || 'individual',
+            groupStatus: data.group_status || 'submitted',
+            picNameHint: data.pic_name_hint || 'PIC Terdaftar',
+            phoneHint: data.phone_hint || '••••',
+            totalJamaah: data.total_jamaah || 1,
+            packageName: data.package_name || 'Umrah 100 Thn Gontor',
+            departurePointName: data.departure_point_name || '—',
+            createdAt: data.created_at || new Date().toISOString(),
+          })
+          setGroup(null)
+          setJamaahs([])
+          setPayments([])
+          setLoading(false)
+          return
+        }
+
         setError(data.error || 'Kode pendaftaran tidak ditemukan. Periksa kembali kode yang Anda masukkan.')
+        setGroup(null)
+        setJamaahs([])
+        setPayments([])
+        setIsAuthorized(false)
+        setRequiresVerification(false)
+        setVerificationMeta(null)
+        setLoading(false)
+        return
+      }
+
+      // Check if security gate is triggered
+      if (data.requires_verification) {
+        setIsAuthorized(false)
+        setRequiresVerification(true)
+        setVerificationMeta({
+          code: data.registration_code || code.trim().toUpperCase(),
+          groupType: data.group_type || 'individual',
+          groupStatus: data.group_status || 'submitted',
+          picNameHint: data.pic_name_hint || 'PIC Terdaftar',
+          phoneHint: data.phone_hint || '••••',
+          totalJamaah: data.total_jamaah || 1,
+          packageName: data.package_name || 'Umrah 100 Thn Gontor',
+          departurePointName: data.departure_point_name || '—',
+          createdAt: data.created_at || new Date().toISOString(),
+        })
         setGroup(null)
         setJamaahs([])
         setPayments([])
@@ -156,13 +235,18 @@ function StatusContent() {
         return
       }
 
+      // Authorized! Full data received
+      setIsAuthorized(true)
+      setRequiresVerification(false)
+      setVerificationMeta(null)
+
       const fetchedGroup = data.group as RegistrationGroup
       const fetchedJamaahs = (data.jamaahs ?? []) as Jamaah[]
       setGroup(fetchedGroup)
       setJamaahs(fetchedJamaahs)
       setPayments((data.payments ?? []) as Payment[])
 
-      // Save code to device history so user can revisit without retyping
+      // Save code and token to device history so this device is permanently trusted
       if (fetchedGroup.registration_code) {
         const pic = getGroupPic(fetchedGroup)
         saveRegistrationHistory({
@@ -170,6 +254,7 @@ function StatusContent() {
           picName: pic.name,
           memberCount: fetchedJamaahs.length,
           date: fetchedGroup.created_at || new Date().toISOString(),
+          token: data.auth_token || storedToken || undefined,
         })
         setDeviceHistory(getRegistrationHistory())
       }
@@ -184,19 +269,82 @@ function StatusContent() {
       console.error('Fetch status error:', err)
       setError('Terjadi kendala saat memeriksa status pendaftaran.')
       setGroup(null)
+      setIsAuthorized(false)
+      setRequiresVerification(false)
     } finally {
       setLoading(false)
     }
   }
 
+  async function handleVerifyPhone(e: React.FormEvent) {
+    e.preventDefault()
+    if (!verificationMeta || !inputPhoneLast4.trim()) return
+
+    setVerifyingPhone(true)
+    setVerificationError(null)
+
+    try {
+      const url = `/api/status?code=${encodeURIComponent(
+        verificationMeta.code
+      )}&phone_last_4=${encodeURIComponent(inputPhoneLast4.trim())}`
+      const res = await fetch(url)
+      const data = await res.json()
+
+      if (!res.ok || !data.is_authorized) {
+        setVerificationError(
+          data.error || '4 digit nomor HP tidak cocok. Pastikan Anda memasukkan nomor HP PIC yang benar.'
+        )
+        return
+      }
+
+      // Verification successful!
+      setIsAuthorized(true)
+      setRequiresVerification(false)
+      setVerificationMeta(null)
+
+      const fetchedGroup = data.group as RegistrationGroup
+      const fetchedJamaahs = (data.jamaahs ?? []) as Jamaah[]
+      setGroup(fetchedGroup)
+      setJamaahs(fetchedJamaahs)
+      setPayments((data.payments ?? []) as Payment[])
+
+      if (fetchedGroup.registration_code) {
+        const pic = getGroupPic(fetchedGroup)
+        saveRegistrationHistory({
+          code: fetchedGroup.registration_code,
+          picName: pic.name,
+          memberCount: fetchedJamaahs.length,
+          date: fetchedGroup.created_at || new Date().toISOString(),
+          token: data.auth_token,
+        })
+        setDeviceHistory(getRegistrationHistory())
+      }
+
+      const initialExpanded: Record<string, boolean> = {}
+      fetchedJamaahs.forEach((j) => {
+        initialExpanded[j.id] = true
+      })
+      setExpandedJamaahs(initialExpanded)
+    } catch (err) {
+      console.error('Phone verification error:', err)
+      setVerificationError('Terjadi kendala koneksi saat memverifikasi nomor HP.')
+    } finally {
+      setVerifyingPhone(false)
+    }
+  }
+
   function handleSearch(e: React.FormEvent) {
     e.preventDefault()
-    if (inputKode.trim()) setKode(inputKode.trim())
+    if (inputKode.trim()) {
+      setKode(inputKode.trim())
+      fetchStatus(inputKode.trim())
+    }
   }
 
   function handleSelectHistory(item: RegistrationHistoryItem) {
     setInputKode(item.code)
     setKode(item.code)
+    fetchStatus(item.code, item.token)
   }
 
   function handleClearHistory() {
@@ -547,8 +695,122 @@ function StatusContent() {
           </div>
         )}
 
+        {/* SECURITY GATE: Verifikasi Perangkat Baru */}
+        {!loading && requiresVerification && verificationMeta && (
+          <div className="bg-white border-2 border-amber-300 rounded-2xl shadow-md overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            {/* Header Security Gate */}
+            <div className="bg-gradient-to-r from-amber-500/10 via-amber-50 to-white px-6 py-5 border-b border-amber-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="w-11 h-11 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-sm ring-4 ring-amber-100">
+                  <ShieldAlert className="w-6 h-6" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-amber-900 bg-amber-100 px-2 py-0.5 rounded border border-amber-300">
+                      Verifikasi Keamanan Akses
+                    </span>
+                    <GroupStatusBadge status={verificationMeta.groupStatus} />
+                  </div>
+                  <h2 className="text-lg font-bold text-slate-900 mt-0.5">
+                    Perangkat Belum Terverifikasi
+                  </h2>
+                </div>
+              </div>
+
+              <div className="font-mono text-sm font-bold bg-white px-3 py-1.5 rounded-lg border border-amber-300 text-amber-950 shrink-0">
+                {verificationMeta.code}
+              </div>
+            </div>
+
+            {/* Body Security Gate */}
+            <div className="p-6 space-y-6">
+              <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-2 text-xs text-slate-700">
+                <p className="font-semibold text-slate-900 text-sm flex items-center gap-1.5">
+                  <Lock className="w-4 h-4 text-amber-600" />
+                  Perlindungan Privasi & Data Jamaah
+                </p>
+                <p className="leading-relaxed">
+                  Pendaftaran dengan kode <strong className="font-mono text-slate-900">{verificationMeta.code}</strong> terdaftar atas nama penanggung jawab (PIC) <strong className="text-slate-900">{verificationMeta.picNameHint}</strong> ({verificationMeta.totalJamaah} Jamaah terdaftar).
+                </p>
+                <p className="leading-relaxed text-slate-600">
+                  Demi mencegah pihak tidak berwenang melihat atau mengubah data pribadi, NIK, dan berkas jamaah, silakan masukkan <strong>4 digit terakhir nomor WhatsApp / HP PIC</strong> yang didaftarkan.
+                </p>
+              </div>
+
+              {/* Form Input 4 Digit */}
+              <form onSubmit={handleVerifyPhone} className="space-y-4 max-w-md mx-auto">
+                <div className="space-y-2">
+                  <label className="block text-xs font-bold text-slate-800 text-center">
+                    Masukkan 4 Digit Terakhir No. WhatsApp / HP PIC
+                  </label>
+                  <div className="relative">
+                    <KeyRound className="w-5 h-5 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    <input
+                      type="text"
+                      autoFocus
+                      required
+                      value={inputPhoneLast4}
+                      onChange={(e) => {
+                        setInputPhoneLast4(e.target.value)
+                        setVerificationError(null)
+                      }}
+                      placeholder="Contoh: 7890"
+                      className="w-full h-12 pl-12 pr-4 text-center text-lg font-mono font-bold tracking-widest rounded-xl border-2 border-slate-300 bg-white text-slate-900 focus:outline-none focus:border-amber-500 focus:ring-4 focus:ring-amber-100 transition-all shadow-inner"
+                    />
+                  </div>
+                  <p className="text-[11px] text-center text-slate-500">
+                    Petunjuk nomor terdaftar berakhiran: <span className="font-mono font-semibold text-slate-700">{verificationMeta.phoneHint}</span>
+                  </p>
+                </div>
+
+                {verificationError && (
+                  <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-xs text-red-800 font-medium flex items-start gap-2">
+                    <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+                    <span>{verificationError}</span>
+                  </div>
+                )}
+
+                <div className="flex flex-col sm:flex-row gap-2 pt-2">
+                  <Button
+                    type="submit"
+                    size="lg"
+                    className="flex-1 bg-emerald-700 hover:bg-emerald-800 text-white font-bold h-11"
+                    isLoading={verifyingPhone}
+                    disabled={verifyingPhone || !inputPhoneLast4.trim()}
+                  >
+                    Buka Data Lengkap
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      setRequiresVerification(false)
+                      setVerificationMeta(null)
+                      setKode('')
+                      setInputKode('')
+                    }}
+                    className="h-11"
+                  >
+                    Batal
+                  </Button>
+                </div>
+              </form>
+
+              {/* Note / Help Footer */}
+              <div className="pt-4 border-t border-slate-200 text-center text-[11px] text-slate-500 space-y-1">
+                <p>
+                  Perangkat ini akan otomatis disimpan sebagai <strong>perangkat terpercaya</strong> setelah verifikasi berhasil.
+                </p>
+                <p>
+                  Lupa nomor HP yang didaftarkan? Hubungi panitia via WhatsApp resmi untuk bantuan verifikasi pendaftaran Anda.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Group data */}
-        {!loading && group && (
+        {!loading && group && isAuthorized && (
           <div className="space-y-6">
             {/* Banner Butuh Revisi */}
             {isRevisionRequired && (
@@ -602,7 +864,11 @@ function StatusContent() {
                     </button>
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-[11px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200 px-2.5 py-1 rounded-full inline-flex items-center gap-1.5 shadow-2xs">
+                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                    Perangkat Terverifikasi
+                  </span>
                   <GroupStatusBadge status={group.group_status} />
                 </div>
               </div>

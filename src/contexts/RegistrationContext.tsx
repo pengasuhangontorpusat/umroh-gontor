@@ -11,6 +11,7 @@ export interface RegistrationHistoryItem {
   picName: string
   memberCount: number
   date: string
+  token?: string
 }
 
 export function saveRegistrationHistory(item: RegistrationHistoryItem) {
@@ -18,8 +19,13 @@ export function saveRegistrationHistory(item: RegistrationHistoryItem) {
   try {
     const raw = localStorage.getItem(HISTORY_STORAGE_KEY)
     const list: RegistrationHistoryItem[] = raw ? JSON.parse(raw) : []
-    const filtered = list.filter((i) => i.code !== item.code)
-    filtered.unshift(item)
+    const existing = list.find((i) => i.code.toUpperCase() === item.code.toUpperCase())
+    const mergedItem: RegistrationHistoryItem = {
+      ...item,
+      token: item.token || existing?.token,
+    }
+    const filtered = list.filter((i) => i.code.toUpperCase() !== item.code.toUpperCase())
+    filtered.unshift(mergedItem)
     localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(filtered.slice(0, 10)))
   } catch (err) {
     console.warn('Failed to save registration history to localStorage:', err)
@@ -33,6 +39,40 @@ export function getRegistrationHistory(): RegistrationHistoryItem[] {
     return raw ? JSON.parse(raw) : []
   } catch {
     return []
+  }
+}
+
+export function getRegistrationToken(code: string): string | null {
+  if (typeof window === 'undefined' || !code) return null
+  try {
+    const list = getRegistrationHistory()
+    const found = list.find((i) => i.code.toUpperCase() === code.toUpperCase())
+    return found?.token || null
+  } catch {
+    return null
+  }
+}
+
+export function saveRegistrationToken(code: string, token: string) {
+  if (typeof window === 'undefined' || !code || !token) return
+  try {
+    const list = getRegistrationHistory()
+    const existing = list.find((i) => i.code.toUpperCase() === code.toUpperCase())
+    if (existing) {
+      existing.token = token
+      localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(list))
+    } else {
+      list.unshift({
+        code: code.toUpperCase().trim(),
+        picName: '',
+        memberCount: 1,
+        date: new Date().toISOString(),
+        token,
+      })
+      localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(list.slice(0, 10)))
+    }
+  } catch (err) {
+    console.warn('Failed to save registration token:', err)
   }
 }
 

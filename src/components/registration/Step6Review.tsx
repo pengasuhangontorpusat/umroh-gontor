@@ -150,6 +150,7 @@ export function Step6Review() {
           picName: draft.pic_name,
           memberCount: draft.members.length,
           date: new Date().toISOString(),
+          token: data.auth_token,
         })
       }
 

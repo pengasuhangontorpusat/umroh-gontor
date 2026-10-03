@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/server'
 import { generateIdempotencyKey } from '@/lib/utils'
+import { generateDeviceToken } from '@/lib/device-auth'
 
 // Prevent double submit with in-memory set (use Redis in production)
 const processedKeys = new Set<string>()
@@ -308,11 +309,14 @@ export async function POST(req: NextRequest) {
       setTimeout(() => processedKeys.delete(idempotencyKey), 3600000)
     }
 
+    const authToken = generateDeviceToken(registrationCode, pic_phone || '')
+
     return NextResponse.json({
       group_id: group.id,
       registration_code: registrationCode,
       jamaah_ids: jamaahs.map((j) => j.id),
       payment_id: paymentId,
+      auth_token: authToken,
     })
   } catch (err) {
     console.error('[registration/submit]', err)
