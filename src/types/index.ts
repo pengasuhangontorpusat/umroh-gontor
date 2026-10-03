@@ -312,3 +312,12 @@ export const DOCUMENT_TYPE_LABELS: Record<DocumentType, string> = {
   paspor: 'Paspor',
   bukti_bayar: 'Bukti Pembayaran',
 }
+
+export interface BankAccount {
+  id: string
+  bankName: string
+  accountNumber: string
+  accountHolder: string
+  isActive: boolean
+  qrCodeUrl?: string
+}
