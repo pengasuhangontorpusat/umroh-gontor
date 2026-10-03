@@ -244,6 +244,19 @@ export interface PaymentFormData {
 // API response types
 // ============================================================
 
+export type CitizenshipType = 'wni' | 'wna'
+export type DocumentAudience = 'all' | 'wni' | 'wna'
+
+export interface DocumentRequirement {
+  id: string
+  name: string
+  description: string
+  icon: string
+  isRequired: boolean
+  isActive: boolean
+  targetAudience?: DocumentAudience
+}
+
 export interface ApiResponse<T> {
   data?: T
   error?: string

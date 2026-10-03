@@ -62,6 +62,8 @@ export function Step2Pic() {
 
   const pic = draft.members[0]
   const [isDeparting, setIsDeparting] = useState<boolean>(draft.pic_is_departing ?? true)
+  const [citizenshipType, setCitizenshipType] = useState<'wni' | 'wna'>(draft.pic_citizenship_type || 'wni')
+  const [country, setCountry] = useState<string>(draft.pic_country || (draft.pic_citizenship_type === 'wna' ? 'Malaysia' : 'Indonesia'))
 
   const {
     register,
@@ -73,6 +75,8 @@ export function Step2Pic() {
     resolver: zodResolver(picSchema) as any,
     defaultValues: {
       full_name: draft.pic_name || pic?.full_name || '',
+      citizenship_type: draft.pic_citizenship_type || 'wni',
+      country: draft.pic_country || 'Indonesia',
       phone: draft.pic_phone,
       email: draft.pic_email,
       domicile_city: draft.pic_domicile_city,
@@ -80,6 +84,11 @@ export function Step2Pic() {
       package_id: draft.package_id || '',
     },
   })
+
+  useEffect(() => {
+    setValue('citizenship_type', citizenshipType)
+    setValue('country', country)
+  }, [citizenshipType, country, setValue])
 
   useEffect(() => {
     if (packages.length > 0) {
@@ -95,6 +104,8 @@ export function Step2Pic() {
   function onSubmit(values: PicFormValues) {
     setDraft({
       pic_name: values.full_name,
+      pic_citizenship_type: citizenshipType,
+      pic_country: country,
       pic_phone: values.phone,
       pic_email: values.email ?? '',
       pic_domicile_city: values.domicile_city,
@@ -108,7 +119,11 @@ export function Step2Pic() {
       if (pic) {
         updateMember(pic.id, {
           full_name: values.full_name,
+          citizenship_type: citizenshipType,
+          country: country,
+          nationality: citizenshipType === 'wni' ? 'Indonesia' : country,
           phone: values.phone,
+          city: values.domicile_city,
           relationship_to_pic: 'Diri Sendiri (PIC)',
         })
       }
@@ -202,13 +217,87 @@ export function Step2Pic() {
         </div>
       )}
 
+      {/* Kewarganegaraan PIC */}
+      <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
+        <label className="text-xs font-semibold text-slate-800 block">
+          Kewarganegaraan Penanggung Jawab (PIC)
+        </label>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <label
+            className={`flex items-center gap-2.5 p-3 rounded-lg border cursor-pointer transition-all ${
+              citizenshipType === 'wni'
+                ? 'bg-emerald-50 border-emerald-600 text-emerald-900 ring-1 ring-emerald-600 font-semibold'
+                : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100'
+            }`}
+          >
+            <input
+              type="radio"
+              name="pic_citizenship"
+              checked={citizenshipType === 'wni'}
+              onChange={() => {
+                setCitizenshipType('wni')
+                setCountry('Indonesia')
+              }}
+              className="text-emerald-700 focus:ring-emerald-600"
+            />
+            <span className="text-xs">🇮🇩 WNI (Warga Negara Indonesia)</span>
+          </label>
+
+          <label
+            className={`flex items-center gap-2.5 p-3 rounded-lg border cursor-pointer transition-all ${
+              citizenshipType === 'wna'
+                ? 'bg-emerald-50 border-emerald-600 text-emerald-900 ring-1 ring-emerald-600 font-semibold'
+                : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100'
+            }`}
+          >
+            <input
+              type="radio"
+              name="pic_citizenship"
+              checked={citizenshipType === 'wna'}
+              onChange={() => {
+                setCitizenshipType('wna')
+                if (country === 'Indonesia') setCountry('Malaysia')
+              }}
+              className="text-emerald-700 focus:ring-emerald-600"
+            />
+            <span className="text-xs">🌏 WNA / Luar Negeri (International)</span>
+          </label>
+        </div>
+
+        {citizenshipType === 'wna' && (
+          <div className="pt-2 border-t border-slate-200 space-y-2">
+            <label className="block text-xs font-medium text-slate-700">
+              Pilih Negara Asal / Kewarganegaraan
+            </label>
+            <select
+              value={country}
+              onChange={(e) => setCountry(e.target.value)}
+              className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-emerald-600"
+            >
+              <option value="Malaysia">🇲🇾 Malaysia</option>
+              <option value="Brunei">🇧🇳 Brunei Darussalam</option>
+              <option value="Thailand">🇹🇭 Thailand</option>
+              <option value="Singapore">🇸🇬 Singapore</option>
+              <option value="Saudi Arabia">🇸🇦 Saudi Arabia</option>
+              <option value="Egypt">🇪🇬 Egypt (Mesir)</option>
+              <option value="Australia">🇦🇺 Australia</option>
+              <option value="United Kingdom">🇬🇧 United Kingdom</option>
+              <option value="Lainnya">🌍 Negara Lainnya</option>
+            </select>
+            <p className="text-[11px] text-emerald-800">
+              💡 Format nomor WhatsApp dan dokumen administrasi akan otomatis disesuaikan untuk jamaah luar negeri.
+            </p>
+          </div>
+        )}
+      </div>
+
       {/* Name + Phone */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <Input
           label="Nama Lengkap PIC"
           id="pic-name"
           required
-          placeholder="Sesuai KTP atau paspor"
+          placeholder={citizenshipType === 'wna' ? 'Sesuai Paspor / ID' : 'Sesuai KTP atau paspor'}
           error={errors.full_name?.message}
           {...register('full_name')}
         />
@@ -217,7 +306,8 @@ export function Step2Pic() {
           id="pic-phone"
           type="tel"
           required
-          placeholder="081234567890"
+          placeholder={citizenshipType === 'wna' ? '+60 12-345 6789' : '081234567890'}
+          hint={citizenshipType === 'wna' ? 'Gunakan kode negara (misal +60 untuk Malaysia, +66 Thailand, dll)' : undefined}
           error={errors.phone?.message}
           {...register('phone')}
         />
@@ -234,10 +324,10 @@ export function Step2Pic() {
           {...register('email')}
         />
         <Input
-          label="Kota Domisili"
+          label={citizenshipType === 'wna' ? 'Kota Domisili (Luar Negeri)' : 'Kota Domisili'}
           id="pic-city"
           required
-          placeholder="Jakarta Selatan, Ponorogo, Surabaya..."
+          placeholder={citizenshipType === 'wna' ? 'Kuala Lumpur, Selangor, Bangkok...' : 'Jakarta Selatan, Ponorogo, Surabaya...'}
           error={errors.domicile_city?.message}
           {...register('domicile_city')}
         />

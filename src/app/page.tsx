@@ -76,6 +76,7 @@ export default async function HomePage() {
     icon: string
     isRequired: boolean
     isActive: boolean
+    targetAudience?: 'all' | 'wni' | 'wna'
   }
 
   const configuredDocs = (
@@ -85,18 +86,20 @@ export default async function HomePage() {
           {
             id: 'ktp',
             name: 'KTP (Kartu Tanda Penduduk)',
-            description: 'Wajib untuk jamaah usia 17 tahun ke atas',
+            description: 'Wajib untuk WNI usia 17 tahun ke atas',
             icon: '📄',
             isRequired: true,
             isActive: true,
+            targetAudience: 'wni',
           },
           {
             id: 'kk',
             name: 'Kartu Keluarga',
-            description: 'Untuk semua anggota keluarga',
+            description: 'Untuk semua anggota rombongan/keluarga',
             icon: '📋',
             isRequired: true,
             isActive: true,
+            targetAudience: 'wni',
           },
           {
             id: 'vaksin',
@@ -105,14 +108,16 @@ export default async function HomePage() {
             icon: '💉',
             isRequired: false,
             isActive: true,
+            targetAudience: 'all',
           },
           {
             id: 'paspor',
             name: 'Paspor',
-            description: 'Jika belum memiliki, dapat ditandai dan dilengkapi kemudian',
+            description: 'Wajib untuk WNA & pelengkap perjalanan internasional',
             icon: '📘',
             isRequired: false,
             isActive: true,
+            targetAudience: 'all',
           },
         ]
   ) as DocReqItem[]
@@ -324,6 +329,17 @@ export default async function HomePage() {
                       }`}
                     >
                       {doc.isRequired ? 'Wajib' : 'Opsional / Menyusul'}
+                    </span>
+                    <span
+                      className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${
+                        doc.targetAudience === 'wna'
+                          ? 'bg-amber-50 text-amber-800 border border-amber-200'
+                          : doc.targetAudience === 'wni'
+                          ? 'bg-indigo-50 text-indigo-700 border border-indigo-200'
+                          : 'bg-teal-50 text-teal-700 border border-teal-200'
+                      }`}
+                    >
+                      {doc.targetAudience === 'wna' ? 'Khusus WNA' : doc.targetAudience === 'wni' ? 'Khusus WNI' : 'WNI & WNA'}
                     </span>
                   </div>
                   {doc.description && (

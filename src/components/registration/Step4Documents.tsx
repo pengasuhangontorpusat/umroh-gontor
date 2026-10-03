@@ -1,11 +1,11 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRegistration } from '@/contexts/RegistrationContext'
 import { Button } from '@/components/ui/Button'
 import { FileUpload } from '@/components/ui/FileUpload'
 import { DocumentStatusBadge } from '@/components/ui/StatusBadge'
-import { DocumentType, DocumentStatus, DOCUMENT_TYPE_LABELS } from '@/types'
+import { DocumentType, DocumentStatus, DOCUMENT_TYPE_LABELS, DocumentRequirement } from '@/types'
 import { isKtpRequired } from '@/lib/utils'
 import { ChevronDown, ChevronUp, Lock } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -50,6 +50,10 @@ function MemberDocs({
   memberName,
   birthDate,
   passportStatus,
+  citizenshipType,
+  country,
+  nationality,
+  configuredDocs,
   state,
   onUpload,
 }: {
@@ -58,36 +62,70 @@ function MemberDocs({
   memberName: string
   birthDate: string
   passportStatus: string
+  citizenshipType?: 'wni' | 'wna'
+  country?: string
+  nationality?: string
+  configuredDocs: DocumentRequirement[]
   state: Partial<Record<DocumentType, DocumentState>>
   onUpload: (docType: DocumentType, file: File) => Promise<void>
 }) {
   const [expanded, setExpanded] = useState(memberIndex === 0)
+  const isWna = citizenshipType === 'wna' || (nationality && nationality.toLowerCase() !== 'indonesia')
   const ktpRequired = birthDate ? isKtpRequired(birthDate) : true
   const isPassportLocked = passportStatus !== 'has_passport'
   const isPassportInProcess = passportStatus === 'in_process'
 
-  const DOC_TYPES: Array<{
-    type: DocumentType
-    required: boolean
-    note?: string
-    locked?: boolean
-  }> = [
-    { type: 'ktp', required: ktpRequired, note: ktpRequired ? undefined : 'Tidak wajib (di bawah 17 tahun)' },
-    { type: 'kk', required: true },
-    { type: 'vaksin', required: false, note: 'Dapat dikoordinasikan dengan panitia' },
-    {
-      type: 'paspor',
-      required: false,
-      note: isPassportLocked
-        ? isPassportInProcess
-          ? 'Paspor sedang proses (dapat dilengkapi menyusul di menu Cek Status)'
-          : 'Belum ada paspor (dapat dilengkapi menyusul di menu Cek Status)'
-        : 'Wajib lampirkan scan/foto halaman identitas paspor yang jelas',
-      locked: isPassportLocked,
-    },
-  ]
+  // Filter documents based on targetAudience set in Admin Settings
+  const relevantDocs = (configuredDocs && configuredDocs.length > 0
+    ? configuredDocs
+    : [
+        { id: 'ktp', name: 'KTP (Kartu Tanda Penduduk)', description: 'Wajib untuk WNI usia 17 tahun ke atas', icon: '📄', isRequired: true, isActive: true, targetAudience: 'wni' as const },
+        { id: 'kk', name: 'Kartu Keluarga', description: 'Untuk semua anggota keluarga/rombongan', icon: '📋', isRequired: true, isActive: true, targetAudience: 'wni' as const },
+        { id: 'vaksin', name: 'Kartu Vaksin Meningitis & Polio', description: 'Dapat dikoordinasikan dengan panitia', icon: '💉', isRequired: false, isActive: true, targetAudience: 'all' as const },
+        { id: 'paspor', name: 'Buku Paspor', description: 'Wajib untuk WNA & pelengkap perjalanan internasional', icon: '📘', isRequired: false, isActive: true, targetAudience: 'all' as const },
+      ]
+  )
+    .filter((d) => d.isActive !== false)
+    .filter((d) => {
+      const aud = d.targetAudience || 'all'
+      if (aud === 'all') return true
+      if (isWna) return aud === 'wna'
+      return aud === 'wni'
+    })
+    .map((d) => {
+      const typeKey = (d.id as DocumentType) || 'ktp'
+      const isPass = typeKey === 'paspor'
+      const isKtp = typeKey === 'ktp'
+      const locked = isPass && isPassportLocked
 
-  const activeDocs = DOC_TYPES.filter((d) => !d.locked)
+      let isReq = d.isRequired
+      if (isKtp) isReq = isReq && ktpRequired
+      if (isPass && isWna) isReq = true // WNA always needs passport for travel
+
+      let note = d.description
+      if (isKtp && !ktpRequired) note = 'Tidak wajib (di bawah 17 tahun)'
+      if (isPass) {
+        note = isPassportLocked
+          ? isPassportInProcess
+            ? 'Paspor sedang proses (dapat dilengkapi menyusul di menu Cek Status)'
+            : 'Belum ada paspor (dapat dilengkapi menyusul di menu Cek Status)'
+          : isWna
+          ? 'Wajib untuk identitas resmi dan penerbitan visa jamaah luar negeri'
+          : 'Lampirkan scan/foto halaman depan paspor yang jelas'
+      }
+
+      return {
+        type: typeKey,
+        name: d.name,
+        icon: d.icon || '📄',
+        required: isReq,
+        note,
+        locked,
+        audience: d.targetAudience || 'all',
+      }
+    })
+
+  const activeDocs = relevantDocs.filter((d) => !d.locked)
   const uploadedCount = activeDocs.filter(
     (d) => state[d.type]?.status !== 'not_uploaded' && state[d.type]?.status !== undefined
   ).length
@@ -104,8 +142,19 @@ function MemberDocs({
             {String(memberIndex + 1).padStart(2, '0')}
           </div>
           <div className="text-left">
-            <p className="text-sm font-medium text-[var(--text-primary)]">{memberName || `Anggota ${memberIndex + 1}`}</p>
-            <p className="text-xs text-[var(--text-muted)]">
+            <div className="flex items-center gap-2">
+              <p className="text-sm font-semibold text-[var(--text-primary)]">{memberName || `Anggota ${memberIndex + 1}`}</p>
+              <span
+                className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                  isWna
+                    ? 'bg-amber-100 text-amber-900 border border-amber-300'
+                    : 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                }`}
+              >
+                {isWna ? `🌏 WNA (${country || nationality || 'Luar Negeri'})` : '🇮🇩 WNI'}
+              </span>
+            </div>
+            <p className="text-xs text-[var(--text-muted)] mt-0.5">
               {uploadedCount} dari {activeDocs.length} dokumen wajib diunggah
               {isPassportLocked && ' • Paspor menyusul'}
             </p>
@@ -120,13 +169,17 @@ function MemberDocs({
 
       {expanded && (
         <div className="border-t border-[var(--border)] px-4 pb-4 pt-4 space-y-5">
-          {DOC_TYPES.map(({ type, required, note, locked }) => (
+          {relevantDocs.map(({ type, name, icon, required, note, locked, audience }) => (
             <div key={type}>
-              <div className="flex items-center gap-2 mb-2">
-                <p className="text-sm font-medium text-[var(--text-primary)]">
-                  {DOCUMENT_TYPE_LABELS[type]}
+              <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+                <span className="text-base">{icon}</span>
+                <p className="text-sm font-semibold text-[var(--text-primary)]">
+                  {name || DOCUMENT_TYPE_LABELS[type]}
                   {required && <span className="text-[var(--danger)] ml-0.5">*</span>}
                 </p>
+                <span className="text-[10px] px-1.5 py-0.2 rounded bg-slate-100 text-slate-600 font-medium">
+                  {audience === 'wna' ? 'Khusus WNA' : audience === 'wni' ? 'Khusus WNI' : 'Semua Jamaah'}
+                </span>
                 {locked ? (
                   <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-amber-100 text-amber-800 border border-amber-200">
                     <Lock className="w-3 h-3" />
@@ -174,6 +227,18 @@ function MemberDocs({
 
 export function Step4Documents() {
   const { draft, nextStep, prevStep, pendingFiles, setMemberFile } = useRegistration()
+  const [configuredDocs, setConfiguredDocs] = useState<DocumentRequirement[]>([])
+
+  useEffect(() => {
+    fetch('/api/admin/settings/general')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data?.parameters?.documentRequirements) {
+          setConfiguredDocs(data.parameters.documentRequirements)
+        }
+      })
+      .catch((err) => console.warn('Failed to load configured docs, fallback to defaults:', err))
+  }, [])
 
   async function handleUpload(memberId: string, docType: DocumentType, file: File) {
     setMemberFile(memberId, docType, file)
@@ -201,7 +266,7 @@ export function Step4Documents() {
       <div>
         <h2 className="text-xl font-semibold text-[var(--text-primary)]">Dokumen</h2>
         <p className="text-sm text-[var(--text-secondary)] mt-1">
-          Unggah dokumen untuk setiap anggota. Dokumen dapat dilengkapi setelah pendaftaran jika belum tersedia.
+          Unggah berkas persyaratan sesuai ketentuan. Dokumen dapat dilengkapi setelah pendaftaran jika belum tersedia.
         </p>
       </div>
 
@@ -214,6 +279,10 @@ export function Step4Documents() {
             memberName={member.full_name}
             birthDate={member.birth_date}
             passportStatus={member.passport_status}
+            citizenshipType={member.citizenship_type}
+            country={member.country}
+            nationality={member.nationality}
+            configuredDocs={configuredDocs}
             state={docStates[member.id] ?? {}}
             onUpload={(docType, file) => handleUpload(member.id, docType, file)}
           />

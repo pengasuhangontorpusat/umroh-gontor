@@ -6,18 +6,14 @@ import { z } from 'zod'
 
 export const jamaahSchema = z.object({
   full_name: z.string().min(2, 'Nama lengkap minimal 2 karakter').max(200),
+  citizenship_type: z.enum(['wni', 'wna']).default('wni'),
+  country: z.string().optional().default('Indonesia'),
   gender: z.enum(['male', 'female'], { required_error: 'Jenis kelamin wajib dipilih' }),
   father_name: z.string().max(200).optional().or(z.literal('')),
   nik: z
     .string()
     .optional()
-    .or(z.literal(''))
-    .refine((val) => !val || val.length === 16, {
-      message: 'NIK harus 16 digit',
-    })
-    .refine((val) => !val || /^\d{16}$/.test(val), {
-      message: 'NIK hanya boleh berisi angka',
-    }),
+    .or(z.literal('')),
   birth_place: z.string().min(2, 'Tempat lahir wajib diisi'),
   birth_date: z
     .string()
@@ -72,6 +68,8 @@ export const registrationTypeSchema = z.object({
 
 export const picSchema = z.object({
   full_name: z.string().min(2, 'Nama wajib diisi'),
+  citizenship_type: z.enum(['wni', 'wna']).default('wni'),
+  country: z.string().optional().default('Indonesia'),
   phone: z
     .string()
     .min(9, 'Nomor WhatsApp minimal 9 digit')

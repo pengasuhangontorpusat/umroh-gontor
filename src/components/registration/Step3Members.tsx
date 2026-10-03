@@ -5,7 +5,7 @@ import { useRegistration, JamaahDraft } from '@/contexts/RegistrationContext'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Select } from '@/components/ui/Select'
-import { ChevronDown, ChevronUp, Plus, Trash2, User, AlertCircle, MapPin, FileText, HeartPulse } from 'lucide-react'
+import { ChevronDown, ChevronUp, Plus, Trash2, User, AlertCircle, MapPin, FileText, HeartPulse, Copy, Check } from 'lucide-react'
 import { cn, isKtpRequired, calculateAge } from '@/lib/utils'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -54,20 +54,24 @@ interface MemberFormProps {
 }
 
 function MemberForm({ member, index, isFirst, canRemove, isExpanded, onToggleExpand, onRemove }: MemberFormProps) {
-  const { updateMember } = useRegistration()
+  const { draft, updateMember } = useRegistration()
   const [saved, setSaved] = useState(Boolean(member.full_name && member.gender && member.birth_place && member.birth_date))
+  const [copiedAddress, setCopiedAddress] = useState(false)
 
   const {
     register,
     handleSubmit,
     watch,
     setValue,
+    getValues,
     formState: { errors },
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } = useForm<JamaahFormValues, any, JamaahFormValues>({
     resolver: zodResolver(jamaahSchema) as any, // eslint-disable-line @typescript-eslint/no-explicit-any
     defaultValues: {
       full_name: member.full_name,
+      citizenship_type: member.citizenship_type || 'wni',
+      country: member.country || (member.nationality && member.nationality !== 'Indonesia' ? member.nationality : 'Indonesia'),
       gender: (member.gender as JamaahFormValues['gender']) || undefined,
       father_name: member.father_name,
       nik: member.nik,
@@ -108,9 +112,98 @@ function MemberForm({ member, index, isFirst, canRemove, isExpanded, onToggleExp
 
   const birthDate = watch('birth_date')
   const passportStatus = watch('passport_status')
+  const passportIssueDate = watch('passport_issue_date')
+  const relationshipToPic = watch('relationship_to_pic')
   const hasDisability = watch('has_disability')
+  const citizenshipType = watch('citizenship_type') || 'wni'
+  const country = watch('country') || 'Indonesia'
   const ktpRequired = birthDate ? isKtpRequired(birthDate) : false
   const age = birthDate ? calculateAge(birthDate) : null
+
+  // Automation 1: Auto-fill PIC info if relationship is 'Diri Sendiri (PIC)'
+  useEffect(() => {
+    if (relationshipToPic === 'Diri Sendiri (PIC)') {
+      if (draft.pic_name && !getValues('full_name')) {
+        setValue('full_name', draft.pic_name)
+      }
+      if (draft.pic_phone && !getValues('phone')) {
+        setValue('phone', draft.pic_phone)
+      }
+      if (draft.pic_citizenship_type) {
+        setValue('citizenship_type', draft.pic_citizenship_type)
+      }
+      if (draft.pic_country) {
+        setValue('country', draft.pic_country)
+        setValue('nationality', draft.pic_country)
+      }
+      if (draft.pic_domicile_city && !getValues('city')) {
+        setValue('city', draft.pic_domicile_city)
+      }
+    }
+  }, [
+    relationshipToPic,
+    draft.pic_name,
+    draft.pic_phone,
+    draft.pic_citizenship_type,
+    draft.pic_country,
+    draft.pic_domicile_city,
+    getValues,
+    setValue,
+  ])
+
+  // Automation 2: Auto-fill minor presets (age < 17)
+  useEffect(() => {
+    if (age !== null && age < 17) {
+      if (!getValues('marital_status')) {
+        setValue('marital_status', 'single')
+      }
+      if (!getValues('occupation')) {
+        setValue('occupation', 'Pelajar / Mahasiswa')
+      }
+    }
+  }, [age, getValues, setValue])
+
+  // Automation 3: Auto-calculate passport expiry date (+10 years, or +5 years for minor)
+  useEffect(() => {
+    if (passportIssueDate && !getValues('passport_expiry_date')) {
+      const parts = passportIssueDate.split('-')
+      if (parts.length === 3) {
+        const year = parseInt(parts[0], 10)
+        if (!isNaN(year)) {
+          const addYears = (age !== null && age < 17) ? 5 : 10
+          setValue('passport_expiry_date', `${year + addYears}-${parts[1]}-${parts[2]}`)
+        }
+      }
+    }
+  }, [passportIssueDate, age, getValues, setValue])
+
+  const setExpiryYears = (years: number) => {
+    const issueDate = getValues('passport_issue_date')
+    if (issueDate) {
+      const parts = issueDate.split('-')
+      if (parts.length === 3) {
+        const year = parseInt(parts[0], 10)
+        if (!isNaN(year)) {
+          setValue('passport_expiry_date', `${year + years}-${parts[1]}-${parts[2]}`)
+        }
+      }
+    }
+  }
+
+  const copyAddressFromPrimary = () => {
+    const primary = draft.members[0]
+    if (!primary) return
+    if (primary.address) setValue('address', primary.address)
+    if (primary.province) setValue('province', primary.province)
+    if (primary.city) setValue('city', primary.city)
+    if (primary.district) setValue('district', primary.district)
+    if (primary.village) setValue('village', primary.village)
+    if (primary.citizenship_type) setValue('citizenship_type', primary.citizenship_type)
+    if (primary.country) setValue('country', primary.country)
+    if (primary.nationality) setValue('nationality', primary.nationality)
+    setCopiedAddress(true)
+    setTimeout(() => setCopiedAddress(false), 2500)
+  }
 
   function onSave(values: JamaahFormValues): void {
     updateMember(member.id, values as Partial<JamaahDraft>)
@@ -193,13 +286,99 @@ function MemberForm({ member, index, isFirst, canRemove, isExpanded, onToggleExp
               </h4>
             </div>
 
+            {/* Kewarganegaraan Jamaah */}
+            <div className="p-3 bg-white border border-slate-200 rounded-lg space-y-2.5">
+              <label className="text-xs font-semibold text-slate-800 block">
+                Kewarganegaraan Jamaah
+              </label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                <label
+                  className={`flex items-center gap-2 p-2.5 rounded-md border cursor-pointer text-xs transition-all ${
+                    citizenshipType === 'wni'
+                      ? 'bg-emerald-50 border-emerald-600 text-emerald-900 font-semibold ring-1 ring-emerald-600'
+                      : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    value="wni"
+                    checked={citizenshipType === 'wni'}
+                    onChange={() => {
+                      setValue('citizenship_type', 'wni')
+                      setValue('country', 'Indonesia')
+                      setValue('nationality', 'Indonesia')
+                    }}
+                    className="text-emerald-700 focus:ring-emerald-600"
+                  />
+                  <span>🇮🇩 WNI (Indonesia)</span>
+                </label>
+
+                <label
+                  className={`flex items-center gap-2 p-2.5 rounded-md border cursor-pointer text-xs transition-all ${
+                    citizenshipType === 'wna'
+                      ? 'bg-emerald-50 border-emerald-600 text-emerald-900 font-semibold ring-1 ring-emerald-600'
+                      : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    value="wna"
+                    checked={citizenshipType === 'wna'}
+                    onChange={() => {
+                      setValue('citizenship_type', 'wna')
+                      if (country === 'Indonesia') {
+                        setValue('country', 'Malaysia')
+                        setValue('nationality', 'Malaysia')
+                      }
+                      if (passportStatus === 'no_passport') {
+                        setValue('passport_status', 'has_passport')
+                      }
+                    }}
+                    className="text-emerald-700 focus:ring-emerald-600"
+                  />
+                  <span>🌏 WNA (Luar Negeri)</span>
+                </label>
+              </div>
+
+              {citizenshipType === 'wna' && (
+                <div className="pt-2 border-t border-slate-100 flex flex-col sm:flex-row gap-3 items-center">
+                  <div className="w-full sm:w-1/2">
+                    <label className="block text-[11px] font-medium text-slate-600 mb-1">
+                      Pilih Negara Asal
+                    </label>
+                    <select
+                      value={country}
+                      onChange={(e) => {
+                        setValue('country', e.target.value)
+                        setValue('nationality', e.target.value)
+                      }}
+                      className="w-full px-2.5 py-1.5 text-xs border border-slate-300 rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-emerald-600"
+                    >
+                      <option value="Malaysia">🇲🇾 Malaysia</option>
+                      <option value="Brunei">🇧🇳 Brunei Darussalam</option>
+                      <option value="Thailand">🇹🇭 Thailand</option>
+                      <option value="Singapore">🇸🇬 Singapore</option>
+                      <option value="Saudi Arabia">🇸🇦 Saudi Arabia</option>
+                      <option value="Egypt">🇪🇬 Egypt (Mesir)</option>
+                      <option value="Australia">🇦🇺 Australia</option>
+                      <option value="United Kingdom">🇬🇧 United Kingdom</option>
+                      <option value="Lainnya">🌍 Negara Lainnya</option>
+                    </select>
+                  </div>
+                  <p className="text-[11px] text-emerald-800 flex-1 leading-snug">
+                    💡 Bagi jamaah WNA, identitas resmi yang diverifikasi adalah nomor <strong>Paspor</strong> (NIK Indonesia tidak diperlukan).
+                  </p>
+                </div>
+              )}
+            </div>
+
             {/* Row 1: Nama Lengkap & Hubungan dengan PIC */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Input
                 label="Nama Lengkap"
                 id={`name-${member.id}`}
                 required
-                placeholder="Sesuai KTP/Paspor"
+                placeholder={citizenshipType === 'wna' ? 'Sesuai Paspor' : 'Sesuai KTP/Paspor'}
                 error={errors.full_name?.message}
                 {...register('full_name')}
               />
@@ -249,16 +428,27 @@ function MemberForm({ member, index, isFirst, canRemove, isExpanded, onToggleExp
                   <p className="text-xs text-[var(--text-muted)] font-medium">{age} tahun</p>
                 )}
               </div>
-              <Input
-                label={`NIK${ktpRequired ? '' : ' (opsional — di bawah 17 tahun)'}`}
-                id={`nik-${member.id}`}
-                required={ktpRequired}
-                placeholder="16 digit NIK"
-                maxLength={16}
-                error={errors.nik?.message}
-                hint={!ktpRequired ? 'Jamaah di bawah 17 tahun tidak wajib mengisi NIK.' : undefined}
-                {...register('nik')}
-              />
+              {citizenshipType === 'wna' ? (
+                <Input
+                  label="No. Identitas Nasional / Paspor (WNA)"
+                  id={`nik-${member.id}`}
+                  placeholder="Nomor Paspor atau IC (Opsional)"
+                  error={errors.nik?.message}
+                  hint="WNA tidak memerlukan NIK Indonesia. Pastikan Paspor diisi lengkap di Blok 3."
+                  {...register('nik')}
+                />
+              ) : (
+                <Input
+                  label={`NIK${ktpRequired ? '' : ' (opsional — di bawah 17 tahun)'}`}
+                  id={`nik-${member.id}`}
+                  required={ktpRequired}
+                  placeholder="16 digit NIK"
+                  maxLength={16}
+                  error={errors.nik?.message}
+                  hint={!ktpRequired ? 'Jamaah di bawah 17 tahun tidak wajib mengisi NIK.' : undefined}
+                  {...register('nik')}
+                />
+              )}
             </div>
 
             {/* Row 4: Status Pernikahan & Pekerjaan */}
@@ -295,11 +485,32 @@ function MemberForm({ member, index, isFirst, canRemove, isExpanded, onToggleExp
 
           {/* BLOK 2: Kontak & Alamat Domisili */}
           <div className="bg-slate-50/70 p-4 rounded-xl border border-slate-200 space-y-4">
-            <div className="flex items-center gap-2 border-b border-slate-200 pb-2">
-              <MapPin className="w-4 h-4 text-emerald-700" />
-              <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wide">
-                2. Kontak & Alamat Domisili
-              </h4>
+            <div className="flex items-center justify-between border-b border-slate-200 pb-2 flex-wrap gap-2">
+              <div className="flex items-center gap-2">
+                <MapPin className="w-4 h-4 text-emerald-700" />
+                <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wide">
+                  2. Kontak & Alamat Domisili
+                </h4>
+              </div>
+              {index > 0 && (
+                <button
+                  type="button"
+                  onClick={copyAddressFromPrimary}
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold text-emerald-800 bg-emerald-100 hover:bg-emerald-200 rounded-md transition-colors cursor-pointer"
+                >
+                  {copiedAddress ? (
+                    <>
+                      <Check className="w-3.5 h-3.5 text-emerald-700" />
+                      Alamat Disalin!
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-3.5 h-3.5 text-emerald-700" />
+                      Samakan Alamat Rombongan / Keluarga
+                    </>
+                  )}
+                </button>
+              )}
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -307,53 +518,87 @@ function MemberForm({ member, index, isFirst, canRemove, isExpanded, onToggleExp
                 label="Nomor HP / WhatsApp"
                 id={`phone-${member.id}`}
                 type="tel"
-                placeholder="08xxxxxxxxxx"
+                placeholder={citizenshipType === 'wna' ? '+60 12-345 6789' : '08xxxxxxxxxx'}
+                hint={citizenshipType === 'wna' ? 'Dapat gunakan kode negara asal' : undefined}
                 error={errors.phone?.message}
                 {...register('phone')}
               />
             </div>
 
-            <div>
-              <label className="text-sm font-medium text-[var(--text-primary)] block mb-1.5">
-                Alamat Lengkap Sesuai KTP
-              </label>
-              <textarea
-                className="w-full rounded-[var(--radius-md)] border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 font-medium placeholder:text-slate-400 resize-none focus:outline-none focus:border-emerald-700 focus:ring-1 focus:ring-emerald-700 shadow-xs"
-                rows={2}
-                placeholder="Alamat lengkap (Jalan, No. Rumah, RT/RW)"
-                {...register('address')}
-              />
-            </div>
+            {citizenshipType === 'wna' ? (
+              <div className="space-y-4">
+                <div>
+                  <label className="text-sm font-medium text-[var(--text-primary)] block mb-1.5">
+                    Alamat Tempat Tinggal di Luar Negeri
+                  </label>
+                  <textarea
+                    className="w-full rounded-[var(--radius-md)] border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 font-medium placeholder:text-slate-400 resize-none focus:outline-none focus:border-emerald-700 focus:ring-1 focus:ring-emerald-700 shadow-xs"
+                    rows={2}
+                    placeholder="Alamat lengkap tempat tinggal (Jalan, Kota, Kode Pos, Negara)"
+                    {...register('address')}
+                  />
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <Input
+                    label="Kota / Negara Bagian"
+                    id={`city-${member.id}`}
+                    placeholder="Contoh: Kuala Lumpur / Selangor"
+                    {...register('city')}
+                  />
+                  <Input
+                    label="Negara Asal"
+                    id={`country-${member.id}`}
+                    value={country}
+                    disabled
+                    className="bg-slate-100 text-slate-700"
+                  />
+                </div>
+              </div>
+            ) : (
+              <>
+                <div>
+                  <label className="text-sm font-medium text-[var(--text-primary)] block mb-1.5">
+                    Alamat Lengkap Sesuai KTP
+                  </label>
+                  <textarea
+                    className="w-full rounded-[var(--radius-md)] border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 font-medium placeholder:text-slate-400 resize-none focus:outline-none focus:border-emerald-700 focus:ring-1 focus:ring-emerald-700 shadow-xs"
+                    rows={2}
+                    placeholder="Alamat lengkap (Jalan, No. Rumah, RT/RW)"
+                    {...register('address')}
+                  />
+                </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <Input
-                label="Provinsi"
-                id={`province-${member.id}`}
-                placeholder="Contoh: Jawa Timur"
-                {...register('province')}
-              />
-              <Input
-                label="Kabupaten / Kota"
-                id={`city-${member.id}`}
-                placeholder="Contoh: Ponorogo"
-                {...register('city')}
-              />
-            </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <Input
+                    label="Provinsi"
+                    id={`province-${member.id}`}
+                    placeholder="Contoh: Jawa Timur"
+                    {...register('province')}
+                  />
+                  <Input
+                    label="Kabupaten / Kota"
+                    id={`city-${member.id}`}
+                    placeholder="Contoh: Ponorogo"
+                    {...register('city')}
+                  />
+                </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <Input
-                label="Kecamatan"
-                id={`district-${member.id}`}
-                placeholder="Contoh: Mlarak"
-                {...register('district')}
-              />
-              <Input
-                label="Kelurahan / Desa"
-                id={`village-${member.id}`}
-                placeholder="Contoh: Gontor"
-                {...register('village')}
-              />
-            </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <Input
+                    label="Kecamatan"
+                    id={`district-${member.id}`}
+                    placeholder="Contoh: Mlarak"
+                    {...register('district')}
+                  />
+                  <Input
+                    label="Kelurahan / Desa"
+                    id={`village-${member.id}`}
+                    placeholder="Contoh: Gontor"
+                    {...register('village')}
+                  />
+                </div>
+              </>
+            )}
           </div>
 
           {/* BLOK 3: Data Paspor */}
@@ -396,13 +641,34 @@ function MemberForm({ member, index, isFirst, canRemove, isExpanded, onToggleExp
                   type="date"
                   {...register('passport_issue_date')}
                 />
-                <Input
-                  label="Tanggal Kedaluwarsa"
-                  id={`passport-expiry-${member.id}`}
-                  type="date"
-                  error={errors.passport_expiry_date?.message}
-                  {...register('passport_expiry_date')}
-                />
+                <div className="flex flex-col gap-1">
+                  <Input
+                    label="Tanggal Kedaluwarsa"
+                    id={`passport-expiry-${member.id}`}
+                    type="date"
+                    error={errors.passport_expiry_date?.message}
+                    {...register('passport_expiry_date')}
+                  />
+                  {passportIssueDate && (
+                    <div className="flex items-center gap-1.5 mt-0.5">
+                      <span className="text-[11px] text-slate-500">Isi otomatis:</span>
+                      <button
+                        type="button"
+                        onClick={() => setExpiryYears(10)}
+                        className="px-2 py-0.5 text-[11px] font-semibold bg-emerald-50 text-emerald-700 hover:bg-emerald-100 rounded border border-emerald-200 transition-colors"
+                      >
+                        +10 Tahun
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setExpiryYears(5)}
+                        className="px-2 py-0.5 text-[11px] font-semibold bg-slate-100 text-slate-700 hover:bg-slate-200 rounded border border-slate-300 transition-colors"
+                      >
+                        +5 Tahun
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
             )}
           </div>
@@ -546,7 +812,9 @@ export function Step3Members() {
         return
       }
 
-      if (m.nik && !/^\d{16}$/.test(m.nik)) {
+      const isWna = m.citizenship_type === 'wna' || (m.nationality && m.nationality.toLowerCase() !== 'indonesia')
+
+      if (!isWna && m.nik && !/^\d{16}$/.test(m.nik)) {
         setValidationError(`${memberTitle}: NIK harus berupa 16 digit angka.`)
         setExpandedIndex(i)
         return

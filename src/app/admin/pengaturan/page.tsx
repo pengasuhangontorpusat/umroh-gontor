@@ -41,16 +41,18 @@ export interface DocumentRequirement {
   icon: string
   isRequired: boolean
   isActive: boolean
+  targetAudience?: 'all' | 'wni' | 'wna'
 }
 
 export const DEFAULT_DOCS: DocumentRequirement[] = [
   {
     id: 'ktp',
     name: 'KTP (Kartu Tanda Penduduk)',
-    description: 'Wajib untuk jamaah usia 17 tahun ke atas',
+    description: 'Wajib untuk WNI usia 17 tahun ke atas',
     icon: '📄',
     isRequired: true,
     isActive: true,
+    targetAudience: 'wni',
   },
   {
     id: 'kk',
@@ -59,6 +61,7 @@ export const DEFAULT_DOCS: DocumentRequirement[] = [
     icon: '📋',
     isRequired: true,
     isActive: true,
+    targetAudience: 'wni',
   },
   {
     id: 'vaksin',
@@ -67,14 +70,16 @@ export const DEFAULT_DOCS: DocumentRequirement[] = [
     icon: '💉',
     isRequired: false,
     isActive: true,
+    targetAudience: 'all',
   },
   {
     id: 'paspor',
     name: 'Buku Paspor',
-    description: 'Jika belum memiliki, dapat ditandai dan dilengkapi kemudian',
+    description: 'Wajib untuk WNA & pelengkap perjalanan internasional',
     icon: '📘',
     isRequired: false,
     isActive: true,
+    targetAudience: 'all',
   },
 ]
 
@@ -390,12 +395,20 @@ export default function MasterSettingsPage() {
 
   // Document Requirement Modals
   const [isAddDocOpen, setIsAddDocOpen] = useState(false)
-  const [newDoc, setNewDoc] = useState({
+  const [newDoc, setNewDoc] = useState<{
+    name: string
+    description: string
+    icon: string
+    isRequired: boolean
+    isActive: boolean
+    targetAudience: 'all' | 'wni' | 'wna'
+  }>({
     name: '',
     description: '',
     icon: '📄',
     isRequired: true,
     isActive: true,
+    targetAudience: 'all',
   })
   const [isEditDocOpen, setIsEditDocOpen] = useState(false)
   const [editingDoc, setEditingDoc] = useState<DocumentRequirement | null>(null)
@@ -671,12 +684,13 @@ export default function MasterSettingsPage() {
       icon: newDoc.icon || '📄',
       isRequired: Boolean(newDoc.isRequired),
       isActive: Boolean(newDoc.isActive),
+      targetAudience: newDoc.targetAudience || 'all',
     }
     const updatedList = [...(generalSettings.documentRequirements || []), docItem]
     const nextSettings = { ...generalSettings, documentRequirements: updatedList }
     setGeneralSettings(nextSettings)
     setIsAddDocOpen(false)
-    setNewDoc({ name: '', description: '', icon: '📄', isRequired: true, isActive: true })
+    setNewDoc({ name: '', description: '', icon: '📄', isRequired: true, isActive: true, targetAudience: 'all' })
     await handleSaveGeneralSettings(nextSettings, false)
   }
 
@@ -1364,6 +1378,7 @@ export default function MasterSettingsPage() {
                   icon: '📄',
                   isRequired: true,
                   isActive: true,
+                  targetAudience: 'all',
                 })
                 setIsAddDocOpen(true)
               }}
@@ -1403,7 +1418,7 @@ export default function MasterSettingsPage() {
                           <h3 className="text-sm font-bold text-[var(--text-primary)] leading-snug">
                             {doc.name}
                           </h3>
-                          <div className="flex items-center gap-2 mt-1">
+                          <div className="flex items-center gap-1.5 mt-1 flex-wrap">
                             <span
                               className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
                                 doc.isRequired
@@ -1414,13 +1429,24 @@ export default function MasterSettingsPage() {
                               {doc.isRequired ? 'Wajib' : 'Opsional / Menyusul'}
                             </span>
                             <span
+                              className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
+                                doc.targetAudience === 'wna'
+                                  ? 'bg-amber-50 text-amber-800 border border-amber-200'
+                                  : doc.targetAudience === 'wni'
+                                  ? 'bg-indigo-50 text-indigo-700 border border-indigo-200'
+                                  : 'bg-teal-50 text-teal-700 border border-teal-200'
+                              }`}
+                            >
+                              {doc.targetAudience === 'wna' ? 'Khusus WNA' : doc.targetAudience === 'wni' ? 'Khusus WNI' : 'WNI & WNA'}
+                            </span>
+                            <span
                               className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${
                                 doc.isActive
                                   ? 'bg-blue-50 text-blue-700 border border-blue-200'
                                   : 'bg-rose-50 text-rose-700 border border-rose-200'
                               }`}
                             >
-                              {doc.isActive ? 'Aktif Tampil' : 'Nonaktif'}
+                              {doc.isActive ? 'Aktif' : 'Nonaktif'}
                             </span>
                           </div>
                         </div>
@@ -2034,6 +2060,24 @@ export default function MasterSettingsPage() {
 
           <div>
             <label className="block text-xs font-medium text-[var(--text-primary)] mb-1">
+              Peruntukan Dokumen (Target Jamaah)
+            </label>
+            <select
+              value={newDoc.targetAudience || 'all'}
+              onChange={(e) => setNewDoc({ ...newDoc, targetAudience: e.target.value as 'all' | 'wni' | 'wna' })}
+              className="w-full px-3 py-2 text-sm border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--primary)] bg-white"
+            >
+              <option value="all">Semua Jamaah (WNI & WNA)</option>
+              <option value="wni">Khusus Jamaah WNI (Warga Negara Indonesia)</option>
+              <option value="wna">Khusus Jamaah WNA (Luar Negeri)</option>
+            </select>
+            <p className="text-[11px] text-[var(--text-muted)] mt-1">
+              Pilih apakah dokumen ini harus dikumpulkan oleh semua jamaah, khusus WNI (seperti KTP/KK), atau khusus WNA.
+            </p>
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-[var(--text-primary)] mb-1">
               Panduan / Keterangan Berkas
             </label>
             <textarea
@@ -2123,6 +2167,24 @@ export default function MasterSettingsPage() {
                 <option value="wajib">Wajib (Harus dipenuhi / dilampirkan)</option>
                 <option value="opsional">Opsional / Menyusul (Dapat dilengkapi kemudian)</option>
               </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-[var(--text-primary)] mb-1">
+                Peruntukan Dokumen (Target Jamaah)
+              </label>
+              <select
+                value={editingDoc.targetAudience || 'all'}
+                onChange={(e) => setEditingDoc({ ...editingDoc, targetAudience: e.target.value as 'all' | 'wni' | 'wna' })}
+                className="w-full px-3 py-2 text-sm border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--primary)] bg-white"
+              >
+                <option value="all">Semua Jamaah (WNI & WNA)</option>
+                <option value="wni">Khusus Jamaah WNI (Warga Negara Indonesia)</option>
+                <option value="wna">Khusus Jamaah WNA (Luar Negeri)</option>
+              </select>
+              <p className="text-[11px] text-[var(--text-muted)] mt-1">
+                Pilih apakah dokumen ini harus dikumpulkan oleh semua jamaah, khusus WNI (seperti KTP/KK), atau khusus WNA.
+              </p>
             </div>
 
             <div>

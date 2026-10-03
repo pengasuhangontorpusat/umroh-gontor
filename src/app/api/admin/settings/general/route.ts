@@ -5,10 +5,11 @@ export const DEFAULT_DOCUMENT_REQUIREMENTS = [
   {
     id: 'ktp',
     name: 'KTP (Kartu Tanda Penduduk)',
-    description: 'Wajib untuk jamaah usia 17 tahun ke atas',
+    description: 'Wajib untuk WNI usia 17 tahun ke atas',
     icon: '📄',
     isRequired: true,
     isActive: true,
+    targetAudience: 'wni' as const,
   },
   {
     id: 'kk',
@@ -17,6 +18,7 @@ export const DEFAULT_DOCUMENT_REQUIREMENTS = [
     icon: '📋',
     isRequired: true,
     isActive: true,
+    targetAudience: 'wni' as const,
   },
   {
     id: 'vaksin',
@@ -25,14 +27,16 @@ export const DEFAULT_DOCUMENT_REQUIREMENTS = [
     icon: '💉',
     isRequired: false,
     isActive: true,
+    targetAudience: 'all' as const,
   },
   {
     id: 'paspor',
     name: 'Buku Paspor',
-    description: 'Jika belum memiliki, dapat ditandai dan dilengkapi kemudian',
+    description: 'Wajib untuk WNA & pelengkap perjalanan internasional',
     icon: '📘',
     isRequired: false,
     isActive: true,
+    targetAudience: 'all' as const,
   },
 ]
 
@@ -74,7 +78,10 @@ export async function GET() {
       // Document Requirements
       documentRequirements:
         Array.isArray(val.documentRequirements) && val.documentRequirements.length > 0
-          ? val.documentRequirements
+          ? val.documentRequirements.map((d: Record<string, unknown>) => ({
+              ...d,
+              targetAudience: (d.targetAudience as string) || (d.id === 'ktp' || d.id === 'kk' ? 'wni' : 'all'),
+            }))
           : DEFAULT_DOCUMENT_REQUIREMENTS,
     }
 
@@ -139,7 +146,10 @@ export async function POST(req: NextRequest) {
       // Document Requirements
       documentRequirements:
         Array.isArray(documentRequirements) && documentRequirements.length > 0
-          ? documentRequirements
+          ? documentRequirements.map((d: Record<string, unknown>) => ({
+              ...d,
+              targetAudience: (d.targetAudience as string) || (d.id === 'ktp' || d.id === 'kk' ? 'wni' : 'all'),
+            }))
           : DEFAULT_DOCUMENT_REQUIREMENTS,
     }
 

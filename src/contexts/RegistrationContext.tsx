@@ -51,6 +51,8 @@ export interface JamaahDraft {
   nik: string
   birth_place: string
   birth_date: string
+  citizenship_type?: 'wni' | 'wna'
+  country?: string
   nationality: string
   marital_status: string
   occupation: string
@@ -77,6 +79,8 @@ export interface RegistrationDraft {
   type: RegistrationType | null
   departure_point_id: string
   package_id: string
+  pic_citizenship_type?: 'wni' | 'wna'
+  pic_country?: string
   pic_name: string
   pic_phone: string
   pic_email: string
@@ -95,6 +99,8 @@ const defaultDraft: RegistrationDraft = {
   type: null,
   departure_point_id: '',
   package_id: '',
+  pic_citizenship_type: 'wni',
+  pic_country: 'Indonesia',
   pic_name: '',
   pic_phone: '',
   pic_email: '',
@@ -116,6 +122,8 @@ function createEmptyMember(id: string): JamaahDraft {
     nik: '',
     birth_place: '',
     birth_date: '',
+    citizenship_type: 'wni',
+    country: 'Indonesia',
     nationality: 'Indonesia',
     marital_status: '',
     occupation: '',
