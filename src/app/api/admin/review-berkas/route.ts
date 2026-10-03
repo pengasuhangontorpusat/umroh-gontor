@@ -99,3 +99,115 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Gagal memuat data review berkas' }, { status: 500 })
   }
 }
+
+export async function PATCH(req: NextRequest) {
+  try {
+    const body = await req.json()
+    const { jamaahId, fields } = body
+
+    if (!jamaahId || !fields || typeof fields !== 'object') {
+      return NextResponse.json(
+        { error: 'ID jamaah dan data perubahan wajib diisi.' },
+        { status: 400 }
+      )
+    }
+
+    const supabase = await createServiceClient()
+
+    // 1. Fetch current jamaah data for audit log
+    const { data: currentJamaah, error: fetchErr } = await supabase
+      .from('jamaahs')
+      .select('*')
+      .eq('id', jamaahId)
+      .single()
+
+    if (fetchErr || !currentJamaah) {
+      return NextResponse.json({ error: 'Data jamaah tidak ditemukan.' }, { status: 404 })
+    }
+
+    // 2. Prepare payload with sanitization
+    const updatePayload: Record<string, unknown> = {
+      updated_at: new Date().toISOString(),
+    }
+
+    const allowedFields = [
+      'full_name',
+      'nik',
+      'gender',
+      'birth_place',
+      'birth_date',
+      'nationality',
+      'father_name',
+      'relationship_to_pic',
+      'address',
+      'city',
+      'province',
+      'district',
+      'village',
+      'passport_status',
+      'passport_number',
+      'passport_issue_place',
+      'passport_issue_date',
+      'passport_expiry_date',
+      'medical_history',
+      'clothing_size',
+    ]
+
+    allowedFields.forEach((key) => {
+      if (fields[key] !== undefined) {
+        if (typeof fields[key] === 'string') {
+          updatePayload[key] = fields[key].trim() || null
+        } else {
+          updatePayload[key] = fields[key]
+        }
+      }
+    })
+
+    // Specifically handle NIK length (max 16 chars)
+    if (typeof updatePayload.nik === 'string' && updatePayload.nik) {
+      updatePayload.nik = updatePayload.nik.slice(0, 16)
+    }
+
+    // 3. Update in database
+    const { data: updated, error: updateErr } = await supabase
+      .from('jamaahs')
+      .update(updatePayload)
+      .eq('id', jamaahId)
+      .select()
+      .single()
+
+    if (updateErr) {
+      console.error('[review-berkas/PATCH] Update error:', updateErr)
+      return NextResponse.json(
+        { error: 'Gagal menyimpan perubahan: ' + updateErr.message },
+        { status: 500 }
+      )
+    }
+
+    // 4. Record audit log
+    try {
+      await supabase.from('audit_logs').insert({
+        actor_type: 'panitia',
+        action: 'jamaah.corrected_by_admin',
+        entity_type: 'jamaah',
+        entity_id: jamaahId,
+        old_data: currentJamaah,
+        new_data: updated,
+      })
+    } catch (auditErr) {
+      console.warn('Failed to insert audit log for jamaah update:', auditErr)
+    }
+
+    return NextResponse.json({
+      success: true,
+      message: 'Data jamaah berhasil diperbarui.',
+      jamaah: updated,
+    })
+  } catch (err) {
+    console.error('[review-berkas/PATCH] Server error:', err)
+    return NextResponse.json(
+      { error: 'Terjadi kesalahan sistem saat memperbarui data jamaah.' },
+      { status: 500 }
+    )
+  }
+}

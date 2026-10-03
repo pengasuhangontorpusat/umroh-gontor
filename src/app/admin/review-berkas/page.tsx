@@ -30,6 +30,10 @@ import {
   ArrowRight,
   Eye,
   Loader2,
+  Edit2,
+  Save,
+  X,
+  Sparkles,
 } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { DocumentStatusBadge } from '@/components/ui/StatusBadge'
@@ -146,6 +150,12 @@ export default function ReviewBerkasPage() {
   const [autoAdvance, setAutoAdvance] = useState(true)
   const [copiedField, setCopiedField] = useState<string | null>(null)
 
+  // Inline edit state for correcting jamaah data directly in review station
+  const [isEditingData, setIsEditingData] = useState(false)
+  const [editFormData, setEditFormData] = useState<Partial<JamaahRecord>>({})
+  const [savingEdit, setSavingEdit] = useState(false)
+  const [editSuccessMsg, setEditSuccessMsg] = useState('')
+
   // Stats summary
   const [stats, setStats] = useState({
     totalJamaahs: 0,
@@ -201,6 +211,8 @@ export default function ReviewBerkasPage() {
     setShowRevisionBox(false)
     setSelectedReason('')
     setCustomReason('')
+    setIsEditingData(false)
+    setEditFormData({})
   }, [selectedJamaahId, selectedDocType])
 
   // Copy to clipboard helper
@@ -208,6 +220,70 @@ export default function ReviewBerkasPage() {
     navigator.clipboard.writeText(text)
     setCopiedField(fieldName)
     setTimeout(() => setCopiedField(null), 2000)
+  }
+
+  // Inline correction handlers
+  const startEditing = () => {
+    if (!activeJamaah) return
+    setEditFormData({
+      full_name: activeJamaah.full_name || '',
+      nik: activeJamaah.nik || '',
+      gender: activeJamaah.gender || 'male',
+      nationality: activeJamaah.nationality || 'Indonesia',
+      birth_place: activeJamaah.birth_place || '',
+      birth_date: activeJamaah.birth_date ? activeJamaah.birth_date.split('T')[0] : '',
+      father_name: activeJamaah.father_name || '',
+      relationship_to_pic: activeJamaah.relationship_to_pic || '',
+      address: activeJamaah.address || '',
+      city: activeJamaah.city || '',
+      province: activeJamaah.province || '',
+      district: activeJamaah.district || '',
+      village: activeJamaah.village || '',
+      passport_status: activeJamaah.passport_status || 'no_passport',
+      passport_number: activeJamaah.passport_number || '',
+      passport_issue_place: activeJamaah.passport_issue_place || '',
+      passport_issue_date: activeJamaah.passport_issue_date ? activeJamaah.passport_issue_date.split('T')[0] : '',
+      passport_expiry_date: activeJamaah.passport_expiry_date ? activeJamaah.passport_expiry_date.split('T')[0] : '',
+      medical_history: activeJamaah.medical_history || '',
+      clothing_size: activeJamaah.clothing_size || '',
+    })
+    setIsEditingData(true)
+  }
+
+  const cancelEditing = () => {
+    setIsEditingData(false)
+    setEditFormData({})
+  }
+
+  const handleSaveEdit = async () => {
+    if (!activeJamaah) return
+    setSavingEdit(true)
+    try {
+      const res = await fetch('/api/admin/review-berkas', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jamaahId: activeJamaah.id,
+          fields: editFormData,
+        }),
+      })
+      const data = await res.json()
+      if (res.ok && data.jamaah) {
+        setJamaahs((prev) =>
+          prev.map((j) => (j.id === activeJamaah.id ? { ...j, ...data.jamaah } : j))
+        )
+        setEditSuccessMsg('Data jamaah berhasil diperbaiki!')
+        setTimeout(() => setEditSuccessMsg(''), 3000)
+        setIsEditingData(false)
+      } else {
+        alert(data.error || 'Gagal menyimpan perubahan data jamaah.')
+      }
+    } catch (err) {
+      console.error('Save edit error:', err)
+      alert('Terjadi kesalahan jaringan saat menyimpan.')
+    } finally {
+      setSavingEdit(false)
+    }
   }
 
   // Navigation handlers
@@ -772,163 +848,471 @@ export default function ReviewBerkasPage() {
                 <div className="md:col-span-5 p-4 sm:p-5 flex flex-col justify-between space-y-5 bg-white">
                   {/* Section A: Side-by-Side Data Comparison */}
                   <div className="space-y-4">
-                    <div className="flex items-center justify-between border-b border-[var(--border)] pb-2">
-                      <span className="text-xs font-bold uppercase tracking-wider text-[var(--text-secondary)]">
-                        Pencocokan Data Input Jamaah
-                      </span>
-                      <span className="text-[11px] text-slate-400 font-medium">
-                        Cek kesesuaian dengan scan
-                      </span>
+                    <div className="flex items-center justify-between border-b border-[var(--border)] pb-2 gap-2">
+                      <div>
+                        <span className="text-xs font-bold uppercase tracking-wider text-[var(--text-secondary)]">
+                          Pencocokan Data Input Jamaah
+                        </span>
+                        <span className="text-[11px] text-slate-400 block font-normal">
+                          Cek kesesuaian & perbaiki langsung jika ada salah ketik
+                        </span>
+                      </div>
+
+                      {!isEditingData ? (
+                        <button
+                          type="button"
+                          onClick={startEditing}
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-md bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-300 transition-colors shadow-2xs shrink-0 cursor-pointer"
+                          title="Koreksi / Benarkan Data Jamaah Langsung"
+                        >
+                          <Edit2 className="w-3.5 h-3.5 text-emerald-700" />
+                          <span>Koreksi / Edit Data</span>
+                        </button>
+                      ) : (
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <button
+                            type="button"
+                            onClick={cancelEditing}
+                            disabled={savingEdit}
+                            className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-md bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                            <span>Batal</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleSaveEdit}
+                            disabled={savingEdit}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-md bg-[var(--primary)] hover:opacity-90 text-white transition-all shadow-xs cursor-pointer"
+                          >
+                            {savingEdit ? (
+                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            ) : (
+                              <Save className="w-3.5 h-3.5" />
+                            )}
+                            <span>{savingEdit ? 'Menyimpan...' : 'Simpan'}</span>
+                          </button>
+                        </div>
+                      )}
                     </div>
 
-                    {/* Data Fields based on Document Type */}
-                    {selectedDocType === 'ktp' && (
-                      <div className="space-y-2.5 text-xs">
-                        <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-200">
-                          <div className="flex items-center justify-between">
-                            <span className="text-[11px] text-slate-500">Nomor Induk Kependudukan (NIK)</span>
-                            {activeJamaah.nik && (
-                              <button
-                                type="button"
-                                onClick={() => copyToClipboard(activeJamaah.nik || '', 'nik')}
-                                className="inline-flex items-center gap-1 text-[10px] text-[var(--primary)] hover:underline"
+                    {/* Success notification banner */}
+                    {editSuccessMsg && (
+                      <div className="p-2.5 bg-emerald-50 border border-emerald-200 rounded-lg text-emerald-900 text-xs font-semibold flex items-center gap-2 animate-fadeIn">
+                        <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
+                        <span>{editSuccessMsg}</span>
+                      </div>
+                    )}
+
+                    {/* EDITABLE FORM vs READ-ONLY CARDS */}
+                    {isEditingData ? (
+                      /* ============================================================
+                         INLINE EDITABLE CORRECTION FORM
+                         ============================================================ */
+                      <div className="space-y-3.5 text-xs bg-slate-50/70 p-3.5 rounded-xl border border-emerald-300 shadow-2xs">
+                        <div className="flex items-center justify-between pb-2 border-b border-slate-200">
+                          <span className="font-bold text-slate-800 text-xs flex items-center gap-1.5">
+                            <Edit2 className="w-3.5 h-3.5 text-[var(--primary)]" />
+                            Mode Koreksi Data Jamaah
+                          </span>
+                          <span className="text-[11px] text-emerald-800 font-medium bg-emerald-100/60 px-2 py-0.5 rounded">
+                            Bisa diedit sambil melihat scan
+                          </span>
+                        </div>
+
+                        {/* Primary Identity: Name, NIK, Gender */}
+                        <div className="space-y-2">
+                          <div>
+                            <label className="text-[10px] font-bold text-slate-600 uppercase tracking-wide block mb-1">
+                              Nama Lengkap (Sesuai KTP / Paspor) *
+                            </label>
+                            <input
+                              type="text"
+                              value={editFormData.full_name || ''}
+                              onChange={(e) => setEditFormData((prev) => ({ ...prev, full_name: e.target.value }))}
+                              className="w-full px-2.5 py-1.5 text-xs rounded border border-slate-300 focus:border-[var(--primary)] focus:ring-1 focus:ring-[var(--primary)] outline-none bg-white text-slate-900 font-semibold"
+                              placeholder="Nama lengkap jamaah"
+                            />
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-2">
+                            <div>
+                              <label className="text-[10px] font-bold text-slate-600 uppercase tracking-wide block mb-1">
+                                NIK (16 Digit)
+                              </label>
+                              <input
+                                type="text"
+                                maxLength={16}
+                                value={editFormData.nik || ''}
+                                onChange={(e) => setEditFormData((prev) => ({ ...prev, nik: e.target.value.replace(/\D/g, '') }))}
+                                className="w-full px-2.5 py-1.5 text-xs rounded border border-slate-300 focus:border-[var(--primary)] focus:ring-1 focus:ring-[var(--primary)] outline-none bg-white font-mono font-bold text-slate-900"
+                                placeholder="16 digit NIK"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-[10px] font-bold text-slate-600 uppercase tracking-wide block mb-1">
+                                Jenis Kelamin
+                              </label>
+                              <select
+                                value={editFormData.gender || 'male'}
+                                onChange={(e) => setEditFormData((prev) => ({ ...prev, gender: e.target.value }))}
+                                className="w-full px-2.5 py-1.5 text-xs rounded border border-slate-300 focus:border-[var(--primary)] focus:ring-1 focus:ring-[var(--primary)] outline-none bg-white text-slate-900 font-medium"
                               >
-                                {copiedField === 'nik' ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
-                                {copiedField === 'nik' ? 'Disalin' : 'Salin'}
-                              </button>
-                            )}
+                                <option value="male">Laki-laki</option>
+                                <option value="female">Perempuan</option>
+                              </select>
+                            </div>
                           </div>
-                          <p className="text-sm font-bold font-mono text-slate-900 mt-0.5">
-                            {activeJamaah.nik || 'Belum diisi'}
-                          </p>
+
+                          <div className="grid grid-cols-2 gap-2">
+                            <div>
+                              <label className="text-[10px] font-bold text-slate-600 uppercase tracking-wide block mb-1">
+                                Tempat Lahir
+                              </label>
+                              <input
+                                type="text"
+                                value={editFormData.birth_place || ''}
+                                onChange={(e) => setEditFormData((prev) => ({ ...prev, birth_place: e.target.value }))}
+                                className="w-full px-2.5 py-1.5 text-xs rounded border border-slate-300 focus:border-[var(--primary)] focus:ring-1 focus:ring-[var(--primary)] outline-none bg-white text-slate-900"
+                                placeholder="Tempat lahir"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-[10px] font-bold text-slate-600 uppercase tracking-wide block mb-1">
+                                Tanggal Lahir
+                              </label>
+                              <input
+                                type="date"
+                                value={editFormData.birth_date || ''}
+                                onChange={(e) => setEditFormData((prev) => ({ ...prev, birth_date: e.target.value }))}
+                                className="w-full px-2.5 py-1.5 text-xs rounded border border-slate-300 focus:border-[var(--primary)] focus:ring-1 focus:ring-[var(--primary)] outline-none bg-white text-slate-900"
+                              />
+                            </div>
+                          </div>
                         </div>
 
-                        <div className="grid grid-cols-2 gap-2">
-                          <div className="p-2 bg-slate-50 rounded-lg border border-slate-200">
-                            <span className="text-[10px] text-slate-500 block">Nama Lengkap</span>
-                            <span className="font-semibold text-slate-900 text-xs">{activeJamaah.full_name}</span>
-                          </div>
-                          <div className="p-2 bg-slate-50 rounded-lg border border-slate-200">
-                            <span className="text-[10px] text-slate-500 block">Jenis Kelamin</span>
-                            <span className="font-semibold text-slate-900 text-xs">
-                              {activeJamaah.gender === 'male' ? 'Laki-laki' : 'Perempuan'}
-                            </span>
-                          </div>
-                        </div>
-
-                        <div className="p-2 bg-slate-50 rounded-lg border border-slate-200">
-                          <span className="text-[10px] text-slate-500 block">Tempat & Tanggal Lahir</span>
-                          <span className="font-semibold text-slate-900 text-xs">
-                            {activeJamaah.birth_place || '-'}, {formatDate(activeJamaah.birth_date)} ({calculateAge(activeJamaah.birth_date)} tahun)
+                        {/* Paspor Fields */}
+                        <div className="pt-2 border-t border-slate-200 space-y-2">
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-800 bg-emerald-100/70 px-2 py-0.5 rounded block w-fit">
+                            Data Paspor RI
                           </span>
-                        </div>
-
-                        <div className="p-2 bg-slate-50 rounded-lg border border-slate-200">
-                          <span className="text-[10px] text-slate-500 block">Alamat Domisili KTP</span>
-                          <span className="text-slate-800 text-[11px] leading-relaxed">
-                            {activeJamaah.address || '-'}{activeJamaah.city ? `, ${activeJamaah.city}` : ''}{activeJamaah.province ? `, ${activeJamaah.province}` : ''}
-                          </span>
-                        </div>
-                      </div>
-                    )}
-
-                    {selectedDocType === 'paspor' && (
-                      <div className="space-y-2.5 text-xs">
-                        <div className="p-2.5 bg-blue-50/70 rounded-lg border border-blue-200">
-                          <div className="flex items-center justify-between">
-                            <span className="text-[11px] text-blue-800 font-medium">Nomor Paspor RI</span>
-                            {activeJamaah.passport_number && (
-                              <button
-                                type="button"
-                                onClick={() => copyToClipboard(activeJamaah.passport_number || '', 'passport')}
-                                className="inline-flex items-center gap-1 text-[10px] text-blue-700 hover:underline"
+                          <div className="grid grid-cols-2 gap-2">
+                            <div>
+                              <label className="text-[10px] font-bold text-slate-600 uppercase tracking-wide block mb-1">
+                                Nomor Paspor
+                              </label>
+                              <input
+                                type="text"
+                                value={editFormData.passport_number || ''}
+                                onChange={(e) => setEditFormData((prev) => ({ ...prev, passport_number: e.target.value.toUpperCase() }))}
+                                className="w-full px-2.5 py-1.5 text-xs rounded border border-slate-300 focus:border-[var(--primary)] focus:ring-1 focus:ring-[var(--primary)] outline-none bg-white font-mono font-bold text-slate-900 uppercase"
+                                placeholder="Contoh: B1234567"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-[10px] font-bold text-slate-600 uppercase tracking-wide block mb-1">
+                                Status Paspor
+                              </label>
+                              <select
+                                value={editFormData.passport_status || 'no_passport'}
+                                onChange={(e) => setEditFormData((prev) => ({ ...prev, passport_status: e.target.value }))}
+                                className="w-full px-2.5 py-1.5 text-xs rounded border border-slate-300 focus:border-[var(--primary)] focus:ring-1 focus:ring-[var(--primary)] outline-none bg-white text-slate-900"
                               >
-                                {copiedField === 'passport' ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
-                                {copiedField === 'passport' ? 'Disalin' : 'Salin'}
-                              </button>
+                                <option value="has_passport">Sudah Ada Paspor</option>
+                                <option value="in_process">Sedang Diproses</option>
+                                <option value="no_passport">Belum Ada Paspor</option>
+                              </select>
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-3 gap-2">
+                            <div>
+                              <label className="text-[10px] font-bold text-slate-600 uppercase tracking-wide block mb-1">
+                                Tempat Terbit
+                              </label>
+                              <input
+                                type="text"
+                                value={editFormData.passport_issue_place || ''}
+                                onChange={(e) => setEditFormData((prev) => ({ ...prev, passport_issue_place: e.target.value }))}
+                                className="w-full px-2 py-1.5 text-xs rounded border border-slate-300 focus:border-[var(--primary)] outline-none bg-white text-slate-900"
+                                placeholder="Kantor imigrasi"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-[10px] font-bold text-slate-600 uppercase tracking-wide block mb-1">
+                                Tgl Terbit
+                              </label>
+                              <input
+                                type="date"
+                                value={editFormData.passport_issue_date || ''}
+                                onChange={(e) => setEditFormData((prev) => ({ ...prev, passport_issue_date: e.target.value }))}
+                                className="w-full px-1.5 py-1.5 text-[11px] rounded border border-slate-300 focus:border-[var(--primary)] outline-none bg-white text-slate-900"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-[10px] font-bold text-slate-600 uppercase tracking-wide block mb-1">
+                                Habis Berlaku
+                              </label>
+                              <input
+                                type="date"
+                                value={editFormData.passport_expiry_date || ''}
+                                onChange={(e) => setEditFormData((prev) => ({ ...prev, passport_expiry_date: e.target.value }))}
+                                className="w-full px-1.5 py-1.5 text-[11px] rounded border border-slate-300 focus:border-[var(--primary)] outline-none bg-white text-slate-900"
+                              />
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Kartu Keluarga & Domisili Fields */}
+                        <div className="pt-2 border-t border-slate-200 space-y-2">
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-700 bg-slate-200/80 px-2 py-0.5 rounded block w-fit">
+                            Data Kartu Keluarga & Domisili
+                          </span>
+                          <div className="grid grid-cols-2 gap-2">
+                            <div>
+                              <label className="text-[10px] font-bold text-slate-600 uppercase tracking-wide block mb-1">
+                                Nama Ayah Kandung
+                              </label>
+                              <input
+                                type="text"
+                                value={editFormData.father_name || ''}
+                                onChange={(e) => setEditFormData((prev) => ({ ...prev, father_name: e.target.value }))}
+                                className="w-full px-2.5 py-1.5 text-xs rounded border border-slate-300 focus:border-[var(--primary)] focus:ring-1 focus:ring-[var(--primary)] outline-none bg-white text-slate-900"
+                                placeholder="Nama ayah kandung"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-[10px] font-bold text-slate-600 uppercase tracking-wide block mb-1">
+                                Hubungan dgn PIC
+                              </label>
+                              <input
+                                type="text"
+                                value={editFormData.relationship_to_pic || ''}
+                                onChange={(e) => setEditFormData((prev) => ({ ...prev, relationship_to_pic: e.target.value }))}
+                                className="w-full px-2.5 py-1.5 text-xs rounded border border-slate-300 focus:border-[var(--primary)] focus:ring-1 focus:ring-[var(--primary)] outline-none bg-white text-slate-900"
+                                placeholder="Contoh: Diri Sendiri, Istri, Anak"
+                              />
+                            </div>
+                          </div>
+
+                          <div>
+                            <label className="text-[10px] font-bold text-slate-600 uppercase tracking-wide block mb-1">
+                              Alamat Domisili KTP / KK
+                            </label>
+                            <textarea
+                              rows={2}
+                              value={editFormData.address || ''}
+                              onChange={(e) => setEditFormData((prev) => ({ ...prev, address: e.target.value }))}
+                              className="w-full px-2.5 py-1.5 text-xs rounded border border-slate-300 focus:border-[var(--primary)] focus:ring-1 focus:ring-[var(--primary)] outline-none bg-white text-slate-900 leading-relaxed"
+                              placeholder="Alamat domisili lengkap"
+                            />
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-2">
+                            <div>
+                              <label className="text-[10px] font-bold text-slate-600 uppercase tracking-wide block mb-1">
+                                Kota / Kabupaten
+                              </label>
+                              <input
+                                type="text"
+                                value={editFormData.city || ''}
+                                onChange={(e) => setEditFormData((prev) => ({ ...prev, city: e.target.value }))}
+                                className="w-full px-2.5 py-1.5 text-xs rounded border border-slate-300 focus:border-[var(--primary)] outline-none bg-white text-slate-900"
+                                placeholder="Kota/Kab"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-[10px] font-bold text-slate-600 uppercase tracking-wide block mb-1">
+                                Provinsi
+                              </label>
+                              <input
+                                type="text"
+                                value={editFormData.province || ''}
+                                onChange={(e) => setEditFormData((prev) => ({ ...prev, province: e.target.value }))}
+                                className="w-full px-2.5 py-1.5 text-xs rounded border border-slate-300 focus:border-[var(--primary)] outline-none bg-white text-slate-900"
+                                placeholder="Provinsi"
+                              />
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Action buttons at bottom of inline form */}
+                        <div className="pt-2 flex items-center justify-end gap-2 border-t border-slate-200">
+                          <button
+                            type="button"
+                            onClick={cancelEditing}
+                            disabled={savingEdit}
+                            className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-slate-300 hover:bg-slate-100 text-slate-700 transition-colors"
+                          >
+                            Batal
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleSaveEdit}
+                            disabled={savingEdit}
+                            className="inline-flex items-center gap-1.5 px-4 py-1.5 text-xs font-semibold rounded-lg bg-[var(--primary)] hover:opacity-90 text-white shadow-xs transition-all cursor-pointer"
+                          >
+                            {savingEdit ? (
+                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            ) : (
+                              <Save className="w-3.5 h-3.5" />
                             )}
-                          </div>
-                          <p className="text-sm font-bold font-mono text-blue-950 mt-0.5">
-                            {activeJamaah.passport_number || 'Belum memiliki paspor'}
-                          </p>
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-2">
-                          <div className="p-2 bg-slate-50 rounded-lg border border-slate-200">
-                            <span className="text-[10px] text-slate-500 block">Status Paspor</span>
-                            <span className="font-semibold text-slate-900 text-xs">
-                              {activeJamaah.passport_status === 'has_passport'
-                                ? 'Sudah Ada'
-                                : activeJamaah.passport_status === 'in_process'
-                                ? 'Sedang Proses'
-                                : 'Belum Ada'}
-                            </span>
-                          </div>
-                          <div className="p-2 bg-slate-50 rounded-lg border border-slate-200">
-                            <span className="text-[10px] text-slate-500 block">Tempat Diterbitkan</span>
-                            <span className="font-semibold text-slate-900 text-xs">
-                              {activeJamaah.passport_issue_place || '-'}
-                            </span>
-                          </div>
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-2">
-                          <div className="p-2 bg-slate-50 rounded-lg border border-slate-200">
-                            <span className="text-[10px] text-slate-500 block">Tanggal Terbit</span>
-                            <span className="font-semibold text-slate-900 text-xs">
-                              {activeJamaah.passport_issue_date ? formatDate(activeJamaah.passport_issue_date) : '-'}
-                            </span>
-                          </div>
-                          <div className="p-2 bg-slate-50 rounded-lg border border-slate-200">
-                            <span className="text-[10px] text-slate-500 block">Tanggal Habis Berlaku</span>
-                            <span className="font-semibold text-slate-900 text-xs">
-                              {activeJamaah.passport_expiry_date ? formatDate(activeJamaah.passport_expiry_date) : '-'}
-                            </span>
-                          </div>
+                            <span>{savingEdit ? 'Menyimpan...' : 'Simpan Perubahan'}</span>
+                          </button>
                         </div>
                       </div>
-                    )}
+                    ) : (
+                      /* Data Fields based on Document Type (Read-Only Mode) */
+                      <>
+                        {selectedDocType === 'ktp' && (
+                          <div className="space-y-2.5 text-xs">
+                            <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-200">
+                              <div className="flex items-center justify-between">
+                                <span className="text-[11px] text-slate-500">Nomor Induk Kependudukan (NIK)</span>
+                                {activeJamaah.nik && (
+                                  <button
+                                    type="button"
+                                    onClick={() => copyToClipboard(activeJamaah.nik || '', 'nik')}
+                                    className="inline-flex items-center gap-1 text-[10px] text-[var(--primary)] hover:underline"
+                                  >
+                                    {copiedField === 'nik' ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
+                                    {copiedField === 'nik' ? 'Disalin' : 'Salin'}
+                                  </button>
+                                )}
+                              </div>
+                              <p className="text-sm font-bold font-mono text-slate-900 mt-0.5">
+                                {activeJamaah.nik || 'Belum diisi'}
+                              </p>
+                            </div>
 
-                    {selectedDocType === 'kk' && (
-                      <div className="space-y-2.5 text-xs">
-                        <div className="p-2 bg-slate-50 rounded-lg border border-slate-200">
-                          <span className="text-[10px] text-slate-500 block">Nama Ayah Kandung</span>
-                          <span className="font-semibold text-slate-900 text-xs">
-                            {activeJamaah.father_name || '-'}
-                          </span>
-                        </div>
-                        <div className="p-2 bg-slate-50 rounded-lg border border-slate-200">
-                          <span className="text-[10px] text-slate-500 block">Hubungan dengan PIC</span>
-                          <span className="font-semibold text-slate-900 text-xs">
-                            {activeJamaah.relationship_to_pic || '-'}
-                          </span>
-                        </div>
-                        <div className="p-2 bg-slate-50 rounded-lg border border-slate-200">
-                          <span className="text-[10px] text-slate-500 block">Alamat Kartu Keluarga</span>
-                          <span className="text-slate-800 text-[11px] leading-relaxed">
-                            {activeJamaah.address || '-'}
-                          </span>
-                        </div>
-                      </div>
-                    )}
+                            <div className="grid grid-cols-2 gap-2">
+                              <div className="p-2 bg-slate-50 rounded-lg border border-slate-200">
+                                <span className="text-[10px] text-slate-500 block">Nama Lengkap</span>
+                                <span className="font-semibold text-slate-900 text-xs">{activeJamaah.full_name}</span>
+                              </div>
+                              <div className="p-2 bg-slate-50 rounded-lg border border-slate-200">
+                                <span className="text-[10px] text-slate-500 block">Jenis Kelamin</span>
+                                <span className="font-semibold text-slate-900 text-xs">
+                                  {activeJamaah.gender === 'male' ? 'Laki-laki' : 'Perempuan'}
+                                </span>
+                              </div>
+                            </div>
 
-                    {selectedDocType === 'vaksin' && (
-                      <div className="space-y-2.5 text-xs">
-                        <div className="p-2.5 bg-emerald-50/60 rounded-lg border border-emerald-200">
-                          <span className="text-[11px] text-emerald-800 font-medium block">
-                            Ketentuan Vaksinasi Wajib
-                          </span>
-                          <p className="text-xs text-emerald-950 mt-0.5 leading-relaxed">
-                            Vaksin Meningitis wajib untuk seluruh jamaah umrah. Pastikan nama pada sertifikat vaksin sesuai dengan nama pada paspor/KTP.
-                          </p>
-                        </div>
-                        <div className="p-2 bg-slate-50 rounded-lg border border-slate-200">
-                          <span className="text-[10px] text-slate-500 block">Riwayat Penyakit / Catatan Khusus</span>
-                          <span className="font-medium text-slate-800 text-xs">
-                            {activeJamaah.medical_history || 'Tidak ada riwayat medis khusus'}
-                          </span>
-                        </div>
-                      </div>
+                            <div className="p-2 bg-slate-50 rounded-lg border border-slate-200">
+                              <span className="text-[10px] text-slate-500 block">Tempat & Tanggal Lahir</span>
+                              <span className="font-semibold text-slate-900 text-xs">
+                                {activeJamaah.birth_place || '-'}, {formatDate(activeJamaah.birth_date)} ({calculateAge(activeJamaah.birth_date)} tahun)
+                              </span>
+                            </div>
+
+                            <div className="p-2 bg-slate-50 rounded-lg border border-slate-200">
+                              <span className="text-[10px] text-slate-500 block">Alamat Domisili KTP</span>
+                              <span className="text-slate-800 text-[11px] leading-relaxed">
+                                {activeJamaah.address || '-'}{activeJamaah.city ? `, ${activeJamaah.city}` : ''}{activeJamaah.province ? `, ${activeJamaah.province}` : ''}
+                              </span>
+                            </div>
+                          </div>
+                        )}
+
+                        {selectedDocType === 'paspor' && (
+                          <div className="space-y-2.5 text-xs">
+                            <div className="p-2.5 bg-blue-50/70 rounded-lg border border-blue-200">
+                              <div className="flex items-center justify-between">
+                                <span className="text-[11px] text-blue-800 font-medium">Nomor Paspor RI</span>
+                                {activeJamaah.passport_number && (
+                                  <button
+                                    type="button"
+                                    onClick={() => copyToClipboard(activeJamaah.passport_number || '', 'passport')}
+                                    className="inline-flex items-center gap-1 text-[10px] text-blue-700 hover:underline"
+                                  >
+                                    {copiedField === 'passport' ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
+                                    {copiedField === 'passport' ? 'Disalin' : 'Salin'}
+                                  </button>
+                                )}
+                              </div>
+                              <p className="text-sm font-bold font-mono text-blue-950 mt-0.5">
+                                {activeJamaah.passport_number || 'Belum memiliki paspor'}
+                              </p>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-2">
+                              <div className="p-2 bg-slate-50 rounded-lg border border-slate-200">
+                                <span className="text-[10px] text-slate-500 block">Status Paspor</span>
+                                <span className="font-semibold text-slate-900 text-xs">
+                                  {activeJamaah.passport_status === 'has_passport'
+                                    ? 'Sudah Ada'
+                                    : activeJamaah.passport_status === 'in_process'
+                                    ? 'Sedang Proses'
+                                    : 'Belum Ada'}
+                                </span>
+                              </div>
+                              <div className="p-2 bg-slate-50 rounded-lg border border-slate-200">
+                                <span className="text-[10px] text-slate-500 block">Tempat Diterbitkan</span>
+                                <span className="font-semibold text-slate-900 text-xs">
+                                  {activeJamaah.passport_issue_place || '-'}
+                                </span>
+                              </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-2">
+                              <div className="p-2 bg-slate-50 rounded-lg border border-slate-200">
+                                <span className="text-[10px] text-slate-500 block">Tanggal Terbit</span>
+                                <span className="font-semibold text-slate-900 text-xs">
+                                  {activeJamaah.passport_issue_date ? formatDate(activeJamaah.passport_issue_date) : '-'}
+                                </span>
+                              </div>
+                              <div className="p-2 bg-slate-50 rounded-lg border border-slate-200">
+                                <span className="text-[10px] text-slate-500 block">Tanggal Habis Berlaku</span>
+                                <span className="font-semibold text-slate-900 text-xs">
+                                  {activeJamaah.passport_expiry_date ? formatDate(activeJamaah.passport_expiry_date) : '-'}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {selectedDocType === 'kk' && (
+                          <div className="space-y-2.5 text-xs">
+                            <div className="p-2 bg-slate-50 rounded-lg border border-slate-200">
+                              <span className="text-[10px] text-slate-500 block">Nama Ayah Kandung</span>
+                              <span className="font-semibold text-slate-900 text-xs">
+                                {activeJamaah.father_name || '-'}
+                              </span>
+                            </div>
+                            <div className="p-2 bg-slate-50 rounded-lg border border-slate-200">
+                              <span className="text-[10px] text-slate-500 block">Hubungan dengan PIC</span>
+                              <span className="font-semibold text-slate-900 text-xs">
+                                {activeJamaah.relationship_to_pic || '-'}
+                              </span>
+                            </div>
+                            <div className="p-2 bg-slate-50 rounded-lg border border-slate-200">
+                              <span className="text-[10px] text-slate-500 block">Alamat Kartu Keluarga</span>
+                              <span className="text-slate-800 text-[11px] leading-relaxed">
+                                {activeJamaah.address || '-'}
+                              </span>
+                            </div>
+                          </div>
+                        )}
+
+                        {selectedDocType === 'vaksin' && (
+                          <div className="space-y-2.5 text-xs">
+                            <div className="p-2.5 bg-emerald-50/60 rounded-lg border border-emerald-200">
+                              <span className="text-[11px] text-emerald-800 font-medium block">
+                                Ketentuan Vaksinasi Wajib
+                              </span>
+                              <p className="text-xs text-emerald-950 mt-0.5 leading-relaxed">
+                                Vaksin Meningitis wajib untuk seluruh jamaah umrah. Pastikan nama pada sertifikat vaksin sesuai dengan nama pada paspor/KTP.
+                              </p>
+                            </div>
+                            <div className="p-2 bg-slate-50 rounded-lg border border-slate-200">
+                              <span className="text-[10px] text-slate-500 block">Riwayat Penyakit / Catatan Khusus</span>
+                              <span className="font-medium text-slate-800 text-xs">
+                                {activeJamaah.medical_history || 'Tidak ada riwayat medis khusus'}
+                              </span>
+                            </div>
+                          </div>
+                        )}
+                      </>
                     )}
 
                     {/* Current Verification Status Display */}
