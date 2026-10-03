@@ -244,7 +244,7 @@ export function Step2Pic() {
               }}
               className="text-emerald-700 focus:ring-emerald-600"
             />
-            <span className="text-xs">🇮🇩 WNI (Warga Negara Indonesia)</span>
+            <span className="text-xs">WNI (Warga Negara Indonesia)</span>
           </label>
 
           <label
@@ -264,7 +264,7 @@ export function Step2Pic() {
               }}
               className="text-emerald-700 focus:ring-emerald-600"
             />
-            <span className="text-xs">🌏 WNA / Luar Negeri (International)</span>
+            <span className="text-xs">WNA / Luar Negeri (Internasional)</span>
           </label>
         </div>
 
@@ -284,37 +284,37 @@ export function Step2Pic() {
                   setCountry(e.target.value)
                 }
               }}
-              className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-emerald-600 font-medium"
+              className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-emerald-600 font-medium text-slate-900"
             >
-              <optgroup label="🌏 Asia Tenggara (ASEAN)">
-                {COUNTRIES.filter((c) => c.group === 'Asia Tenggara').map((c) => (
+              <optgroup label="Asia Tenggara (ASEAN)">
+                {COUNTRIES.filter((c) => c.group === 'Asia Tenggara (ASEAN)').map((c) => (
                   <option key={c.code} value={c.name}>
-                    {c.flag} {c.name}
+                    {c.name}
                   </option>
                 ))}
               </optgroup>
-              <optgroup label="🕋 Timur Tengah & Afrika">
-                {COUNTRIES.filter((c) => c.group === 'Timur Tengah & Afrika').map((c) => (
+              <optgroup label="Timur Tengah & Afrika Utara">
+                {COUNTRIES.filter((c) => c.group === 'Timur Tengah & Afrika Utara').map((c) => (
                   <option key={c.code} value={c.name}>
-                    {c.flag} {c.name}
+                    {c.name}
                   </option>
                 ))}
               </optgroup>
-              <optgroup label="⛩️ Asia Lainnya">
-                {COUNTRIES.filter((c) => c.group === 'Asia Lainnya').map((c) => (
+              <optgroup label="Asia Selatan & Timur">
+                {COUNTRIES.filter((c) => c.group === 'Asia Selatan & Timur').map((c) => (
                   <option key={c.code} value={c.name}>
-                    {c.flag} {c.name}
+                    {c.name}
                   </option>
                 ))}
               </optgroup>
-              <optgroup label="🌍 Eropa, Amerika & Oseania">
+              <optgroup label="Eropa & Barat">
                 {COUNTRIES.filter((c) => c.group === 'Eropa & Barat').map((c) => (
                   <option key={c.code} value={c.name}>
-                    {c.flag} {c.name}
+                    {c.name}
                   </option>
                 ))}
               </optgroup>
-              <option value="Lainnya">✍️ Negara Lainnya (Tulis Manual)</option>
+              <option value="Lainnya">Negara Lainnya (Tulis Manual)</option>
             </select>
 
             {isCustomCountry && (
@@ -336,8 +336,8 @@ export function Step2Pic() {
               </div>
             )}
 
-            <p className="text-[11px] text-emerald-800">
-              💡 Format nomor WhatsApp dan dokumen administrasi akan otomatis disesuaikan untuk jamaah luar negeri.
+            <p className="text-[11px] text-slate-500">
+              Format nomor WhatsApp dan dokumen administrasi akan otomatis disesuaikan untuk jamaah luar negeri.
             </p>
           </div>
         )}

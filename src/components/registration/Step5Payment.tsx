@@ -157,6 +157,9 @@ export function Step5Payment() {
               onFileSelect={async (file) => {
                 setPaymentProofFile(file)
               }}
+              onFileRemove={() => {
+                setPaymentProofFile(null)
+              }}
             />
           </div>
         </div>

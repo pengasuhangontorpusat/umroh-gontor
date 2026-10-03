@@ -12,6 +12,7 @@ interface FileUploadProps {
   label?: string
   accept?: string
   onFileSelect: (file: File) => Promise<void>
+  onFileRemove?: () => void
   currentFileName?: string
   currentFileUrl?: string
   disabled?: boolean
@@ -23,6 +24,7 @@ export function FileUpload({
   label,
   accept = '.pdf,.jpg,.jpeg,.png',
   onFileSelect,
+  onFileRemove,
   currentFileName,
   currentFileUrl,
   disabled = false,
@@ -34,11 +36,13 @@ export function FileUpload({
   const [fileName, setFileName] = useState<string | null>(null)
   const [fileSize, setFileSize] = useState<number | null>(null)
   const [isDragOver, setIsDragOver] = useState(false)
+  const [isCleared, setIsCleared] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
 
   const handleFile = useCallback(
     async (file: File) => {
       setError(null)
+      setIsCleared(false)
       const validationError = validateDocumentFile(file)
       if (validationError) {
         setError(validationError)
@@ -82,16 +86,20 @@ export function FileUpload({
     setIsDragOver(false)
   }
 
-  function handleReset() {
+  function handleReset(e?: React.MouseEvent) {
+    e?.preventDefault()
+    e?.stopPropagation()
     setState('idle')
     setError(null)
     setFileName(null)
     setFileSize(null)
+    setIsCleared(true)
     if (inputRef.current) inputRef.current.value = ''
+    onFileRemove?.()
   }
 
-  const displayName = fileName || currentFileName
-  const isUploaded = state === 'success' || (currentFileName && state === 'idle')
+  const effectiveFileName = isCleared ? null : (fileName || currentFileName)
+  const isUploaded = (state === 'success' || (Boolean(currentFileName) && state === 'idle')) && Boolean(effectiveFileName) && !isCleared
 
   return (
     <div className={cn('flex flex-col gap-1.5', className)}>
@@ -102,11 +110,11 @@ export function FileUpload({
       )}
 
       {/* Uploaded state */}
-      {isUploaded && displayName ? (
+      {isUploaded && effectiveFileName ? (
         <div className="flex items-center gap-3 p-3 rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)]">
           <File className="w-4 h-4 text-[var(--primary)] flex-shrink-0" />
           <div className="flex-1 min-w-0">
-            <p className="text-sm text-[var(--text-primary)] truncate">{displayName}</p>
+            <p className="text-sm text-[var(--text-primary)] truncate">{effectiveFileName}</p>
             {fileSize && (
               <p className="text-xs text-[var(--text-muted)]">{formatFileSize(fileSize)}</p>
             )}

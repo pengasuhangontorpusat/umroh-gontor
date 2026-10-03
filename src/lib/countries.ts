@@ -1,55 +1,54 @@
 export interface CountryOption {
   code: string
   name: string
-  flag: string
   group: string
 }
 
 export const COUNTRIES: CountryOption[] = [
   // Asia Tenggara (ASEAN)
-  { code: 'MY', name: 'Malaysia', flag: '🇲🇾', group: 'Asia Tenggara' },
-  { code: 'BN', name: 'Brunei Darussalam', flag: '🇧🇳', group: 'Asia Tenggara' },
-  { code: 'TH', name: 'Thailand', flag: '🇹🇭', group: 'Asia Tenggara' },
-  { code: 'SG', name: 'Singapura (Singapore)', flag: '🇸🇬', group: 'Asia Tenggara' },
-  { code: 'PH', name: 'Filipina (Philippines)', flag: '🇵🇭', group: 'Asia Tenggara' },
-  { code: 'KH', name: 'Kamboja (Cambodia)', flag: '🇰🇭', group: 'Asia Tenggara' },
-  { code: 'VN', name: 'Vietnam', flag: '🇻🇳', group: 'Asia Tenggara' },
-  { code: 'MM', name: 'Myanmar', flag: '🇲🇲', group: 'Asia Tenggara' },
+  { code: 'MY', name: 'Malaysia', group: 'Asia Tenggara (ASEAN)' },
+  { code: 'BN', name: 'Brunei Darussalam', group: 'Asia Tenggara (ASEAN)' },
+  { code: 'TH', name: 'Thailand', group: 'Asia Tenggara (ASEAN)' },
+  { code: 'SG', name: 'Singapura (Singapore)', group: 'Asia Tenggara (ASEAN)' },
+  { code: 'PH', name: 'Filipina (Philippines)', group: 'Asia Tenggara (ASEAN)' },
+  { code: 'KH', name: 'Kamboja (Cambodia)', group: 'Asia Tenggara (ASEAN)' },
+  { code: 'VN', name: 'Vietnam', group: 'Asia Tenggara (ASEAN)' },
+  { code: 'MM', name: 'Myanmar', group: 'Asia Tenggara (ASEAN)' },
 
   // Timur Tengah & Afrika Utara
-  { code: 'SA', name: 'Arab Saudi (Saudi Arabia)', flag: '🇸🇦', group: 'Timur Tengah & Afrika' },
-  { code: 'EG', name: 'Mesir (Egypt)', flag: '🇪🇬', group: 'Timur Tengah & Afrika' },
-  { code: 'TR', name: 'Turki (Turkey)', flag: '🇹🇷', group: 'Timur Tengah & Afrika' },
-  { code: 'AE', name: 'Uni Emirat Arab (UAE)', flag: '🇦🇪', group: 'Timur Tengah & Afrika' },
-  { code: 'QA', name: 'Qatar', flag: '🇶🇦', group: 'Timur Tengah & Afrika' },
-  { code: 'JO', name: 'Yordania (Jordan)', flag: '🇯🇴', group: 'Timur Tengah & Afrika' },
-  { code: 'KW', name: 'Kuwait', flag: '🇰🇼', group: 'Timur Tengah & Afrika' },
-  { code: 'OM', name: 'Oman', flag: '🇴🇲', group: 'Timur Tengah & Afrika' },
-  { code: 'MA', name: 'Maroko (Morocco)', flag: '🇲🇦', group: 'Timur Tengah & Afrika' },
-  { code: 'TN', name: 'Tunisia', flag: '🇹🇳', group: 'Timur Tengah & Afrika' },
-  { code: 'SD', name: 'Sudan', flag: '🇸🇩', group: 'Timur Tengah & Afrika' },
-  { code: 'YE', name: 'Yaman (Yemen)', flag: '🇾🇪', group: 'Timur Tengah & Afrika' },
+  { code: 'SA', name: 'Arab Saudi (Saudi Arabia)', group: 'Timur Tengah & Afrika Utara' },
+  { code: 'EG', name: 'Mesir (Egypt)', group: 'Timur Tengah & Afrika Utara' },
+  { code: 'TR', name: 'Turki (Turkey)', group: 'Timur Tengah & Afrika Utara' },
+  { code: 'AE', name: 'Uni Emirat Arab (UAE)', group: 'Timur Tengah & Afrika Utara' },
+  { code: 'QA', name: 'Qatar', group: 'Timur Tengah & Afrika Utara' },
+  { code: 'JO', name: 'Yordania (Jordan)', group: 'Timur Tengah & Afrika Utara' },
+  { code: 'KW', name: 'Kuwait', group: 'Timur Tengah & Afrika Utara' },
+  { code: 'OM', name: 'Oman', group: 'Timur Tengah & Afrika Utara' },
+  { code: 'MA', name: 'Maroko (Morocco)', group: 'Timur Tengah & Afrika Utara' },
+  { code: 'TN', name: 'Tunisia', group: 'Timur Tengah & Afrika Utara' },
+  { code: 'SD', name: 'Sudan', group: 'Timur Tengah & Afrika Utara' },
+  { code: 'YE', name: 'Yaman (Yemen)', group: 'Timur Tengah & Afrika Utara' },
 
   // Asia Selatan & Asia Timur
-  { code: 'PK', name: 'Pakistan', flag: '🇵🇰', group: 'Asia Lainnya' },
-  { code: 'IN', name: 'India', flag: '🇮🇳', group: 'Asia Lainnya' },
-  { code: 'BD', name: 'Bangladesh', flag: '🇧🇩', group: 'Asia Lainnya' },
-  { code: 'JP', name: 'Jepang (Japan)', flag: '🇯🇵', group: 'Asia Lainnya' },
-  { code: 'KR', name: 'Korea Selatan (South Korea)', flag: '🇰🇷', group: 'Asia Lainnya' },
-  { code: 'CN', name: 'Tiongkok (China)', flag: '🇨🇳', group: 'Asia Lainnya' },
-  { code: 'TW', name: 'Taiwan', flag: '🇹🇼', group: 'Asia Lainnya' },
-  { code: 'HK', name: 'Hong Kong', flag: '🇭🇰', group: 'Asia Lainnya' },
+  { code: 'PK', name: 'Pakistan', group: 'Asia Selatan & Timur' },
+  { code: 'IN', name: 'India', group: 'Asia Selatan & Timur' },
+  { code: 'BD', name: 'Bangladesh', group: 'Asia Selatan & Timur' },
+  { code: 'JP', name: 'Jepang (Japan)', group: 'Asia Selatan & Timur' },
+  { code: 'KR', name: 'Korea Selatan (South Korea)', group: 'Asia Selatan & Timur' },
+  { code: 'CN', name: 'Tiongkok (China)', group: 'Asia Selatan & Timur' },
+  { code: 'TW', name: 'Taiwan', group: 'Asia Selatan & Timur' },
+  { code: 'HK', name: 'Hong Kong', group: 'Asia Selatan & Timur' },
 
-  // Eropa & Oseania & Amerika
-  { code: 'AU', name: 'Australia', flag: '🇦🇺', group: 'Eropa & Barat' },
-  { code: 'NZ', name: 'Selandia Baru (New Zealand)', flag: '🇳🇿', group: 'Eropa & Barat' },
-  { code: 'GB', name: 'Inggris (United Kingdom)', flag: '🇬🇧', group: 'Eropa & Barat' },
-  { code: 'US', name: 'Amerika Serikat (USA)', flag: '🇺🇸', group: 'Eropa & Barat' },
-  { code: 'DE', name: 'Jerman (Germany)', flag: '🇩🇪', group: 'Eropa & Barat' },
-  { code: 'NL', name: 'Belanda (Netherlands)', flag: '🇳🇱', group: 'Eropa & Barat' },
-  { code: 'FR', name: 'Prancis (France)', flag: '🇫🇷', group: 'Eropa & Barat' },
-  { code: 'CA', name: 'Kanada (Canada)', flag: '🇨🇦', group: 'Eropa & Barat' },
-  { code: 'RU', name: 'Rusia (Russia)', flag: '🇷🇺', group: 'Eropa & Barat' },
+  // Eropa & Barat
+  { code: 'AU', name: 'Australia', group: 'Eropa & Barat' },
+  { code: 'NZ', name: 'Selandia Baru (New Zealand)', group: 'Eropa & Barat' },
+  { code: 'GB', name: 'Inggris (United Kingdom)', group: 'Eropa & Barat' },
+  { code: 'US', name: 'Amerika Serikat (USA)', group: 'Eropa & Barat' },
+  { code: 'DE', name: 'Jerman (Germany)', group: 'Eropa & Barat' },
+  { code: 'NL', name: 'Belanda (Netherlands)', group: 'Eropa & Barat' },
+  { code: 'FR', name: 'Prancis (France)', group: 'Eropa & Barat' },
+  { code: 'CA', name: 'Kanada (Canada)', group: 'Eropa & Barat' },
+  { code: 'RU', name: 'Rusia (Russia)', group: 'Eropa & Barat' },
 ]
 
 export function isPresetCountry(countryName: string): boolean {

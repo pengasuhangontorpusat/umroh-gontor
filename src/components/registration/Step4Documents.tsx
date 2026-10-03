@@ -7,7 +7,7 @@ import { FileUpload } from '@/components/ui/FileUpload'
 import { DocumentStatusBadge } from '@/components/ui/StatusBadge'
 import { DocumentType, DocumentStatus, DOCUMENT_TYPE_LABELS, DocumentRequirement } from '@/types'
 import { isKtpRequired } from '@/lib/utils'
-import { ChevronDown, ChevronUp, Lock } from 'lucide-react'
+import { ChevronDown, ChevronUp, Lock, FileText, Users, ShieldCheck, BookMarked, File } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface DocumentState {
@@ -56,6 +56,7 @@ function MemberDocs({
   configuredDocs,
   state,
   onUpload,
+  onRemove,
 }: {
   memberIndex: number
   memberId: string
@@ -68,6 +69,7 @@ function MemberDocs({
   configuredDocs: DocumentRequirement[]
   state: Partial<Record<DocumentType, DocumentState>>
   onUpload: (docType: DocumentType, file: File) => Promise<void>
+  onRemove: (docType: DocumentType) => void
 }) {
   const [expanded, setExpanded] = useState(memberIndex === 0)
   const isWna = citizenshipType === 'wna' || (nationality && nationality.toLowerCase() !== 'indonesia')
@@ -75,14 +77,24 @@ function MemberDocs({
   const isPassportLocked = passportStatus !== 'has_passport'
   const isPassportInProcess = passportStatus === 'in_process'
 
+  const getDocLucideIcon = (type: string) => {
+    switch (type) {
+      case 'ktp': return <FileText className="w-4 h-4 text-emerald-700" />
+      case 'kk': return <Users className="w-4 h-4 text-emerald-700" />
+      case 'vaksin': return <ShieldCheck className="w-4 h-4 text-emerald-700" />
+      case 'paspor': return <BookMarked className="w-4 h-4 text-emerald-700" />
+      default: return <File className="w-4 h-4 text-emerald-700" />
+    }
+  }
+
   // Filter documents based on targetAudience set in Admin Settings
   const relevantDocs = (configuredDocs && configuredDocs.length > 0
     ? configuredDocs
     : [
-        { id: 'ktp', name: 'KTP (Kartu Tanda Penduduk)', description: 'Wajib untuk WNI usia 17 tahun ke atas', icon: '📄', isRequired: true, isActive: true, targetAudience: 'wni' as const },
-        { id: 'kk', name: 'Kartu Keluarga', description: 'Untuk semua anggota keluarga/rombongan', icon: '📋', isRequired: true, isActive: true, targetAudience: 'wni' as const },
-        { id: 'vaksin', name: 'Kartu Vaksin Meningitis & Polio', description: 'Dapat dikoordinasikan dengan panitia', icon: '💉', isRequired: false, isActive: true, targetAudience: 'all' as const },
-        { id: 'paspor', name: 'Buku Paspor', description: 'Wajib untuk WNA & pelengkap perjalanan internasional', icon: '📘', isRequired: false, isActive: true, targetAudience: 'all' as const },
+        { id: 'ktp', name: 'KTP (Kartu Tanda Penduduk)', description: 'Wajib untuk WNI usia 17 tahun ke atas', icon: 'ktp', isRequired: true, isActive: true, targetAudience: 'wni' as const },
+        { id: 'kk', name: 'Kartu Keluarga', description: 'Untuk semua anggota keluarga/rombongan', icon: 'kk', isRequired: true, isActive: true, targetAudience: 'wni' as const },
+        { id: 'vaksin', name: 'Kartu Vaksin Meningitis & Polio', description: 'Dapat dikoordinasikan dengan panitia', icon: 'vaksin', isRequired: false, isActive: true, targetAudience: 'all' as const },
+        { id: 'paspor', name: 'Buku Paspor', description: 'Wajib untuk WNA & pelengkap perjalanan internasional', icon: 'paspor', isRequired: false, isActive: true, targetAudience: 'all' as const },
       ]
   )
     .filter((d) => d.isActive !== false)
@@ -117,7 +129,7 @@ function MemberDocs({
       return {
         type: typeKey,
         name: d.name,
-        icon: d.icon || '📄',
+        iconType: typeKey,
         required: isReq,
         note,
         locked,
@@ -145,13 +157,13 @@ function MemberDocs({
             <div className="flex items-center gap-2">
               <p className="text-sm font-semibold text-[var(--text-primary)]">{memberName || `Anggota ${memberIndex + 1}`}</p>
               <span
-                className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
                   isWna
-                    ? 'bg-amber-100 text-amber-900 border border-amber-300'
+                    ? 'bg-amber-50 text-amber-900 border border-amber-300'
                     : 'bg-emerald-50 text-emerald-800 border border-emerald-200'
                 }`}
               >
-                {isWna ? `🌏 WNA (${country || nationality || 'Luar Negeri'})` : '🇮🇩 WNI'}
+                {isWna ? `WNA (${country || nationality || 'Luar Negeri'})` : 'WNI (Indonesia)'}
               </span>
             </div>
             <p className="text-xs text-[var(--text-muted)] mt-0.5">
@@ -169,15 +181,15 @@ function MemberDocs({
 
       {expanded && (
         <div className="border-t border-[var(--border)] px-4 pb-4 pt-4 space-y-5">
-          {relevantDocs.map(({ type, name, icon, required, note, locked, audience }) => (
+          {relevantDocs.map(({ type, name, iconType, required, note, locked, audience }) => (
             <div key={type}>
               <div className="flex items-center gap-2 mb-1.5 flex-wrap">
-                <span className="text-base">{icon}</span>
+                {getDocLucideIcon(iconType)}
                 <p className="text-sm font-semibold text-[var(--text-primary)]">
                   {name || DOCUMENT_TYPE_LABELS[type]}
                   {required && <span className="text-[var(--danger)] ml-0.5">*</span>}
                 </p>
-                <span className="text-[10px] px-1.5 py-0.2 rounded bg-slate-100 text-slate-600 font-medium">
+                <span className="text-[10px] px-2 py-0.5 rounded bg-slate-100 text-slate-600 font-medium">
                   {audience === 'wna' ? 'Khusus WNA' : audience === 'wni' ? 'Khusus WNI' : 'Semua Jamaah'}
                 </span>
                 {locked ? (
@@ -215,6 +227,7 @@ function MemberDocs({
                   currentFileName={state[type]?.fileName}
                   currentFileUrl={state[type]?.fileUrl}
                   onFileSelect={(file) => onUpload(type, file)}
+                  onFileRemove={() => onRemove(type)}
                 />
               )}
             </div>
@@ -242,6 +255,10 @@ export function Step4Documents() {
 
   async function handleUpload(memberId: string, docType: DocumentType, file: File) {
     setMemberFile(memberId, docType, file)
+  }
+
+  function handleRemove(memberId: string, docType: DocumentType) {
+    setMemberFile(memberId, docType, null)
   }
 
   // Derive docStates from pendingFiles in context
@@ -285,6 +302,7 @@ export function Step4Documents() {
             configuredDocs={configuredDocs}
             state={docStates[member.id] ?? {}}
             onUpload={(docType, file) => handleUpload(member.id, docType, file)}
+            onRemove={(docType) => handleRemove(member.id, docType)}
           />
         ))}
       </div>

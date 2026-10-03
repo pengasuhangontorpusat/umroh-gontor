@@ -26,6 +26,7 @@ export async function POST(req: NextRequest) {
       disability_description,
       medical_history,
       relationship_to_pic,
+      nationality,
     } = body
 
     if (!registration_code || !jamaah_id || !full_name) {
@@ -72,7 +73,8 @@ export async function POST(req: NextRequest) {
       .update({
         full_name: full_name.trim(),
         father_name: father_name?.trim() || null,
-        nik: nik?.trim() || null,
+        nik: nik?.trim() ? nik.trim().slice(0, 16) : null,
+        nationality: nationality?.trim() || null,
         gender: gender || 'male',
         birth_place: birth_place?.trim() || '',
         birth_date: birth_date || null,

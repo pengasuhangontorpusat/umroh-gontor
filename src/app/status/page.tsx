@@ -54,6 +54,7 @@ import {
   ChevronUp,
 } from 'lucide-react'
 import Link from 'next/link'
+import { COUNTRIES } from '@/lib/countries'
 
 const MARITAL_STATUS_LABELS: Record<string, string> = {
   single: 'Belum Menikah',
@@ -94,6 +95,8 @@ function StatusContent() {
   const [editForm, setEditForm] = useState({
     full_name: '',
     father_name: '',
+    citizenship_type: 'wni' as 'wni' | 'wna',
+    nationality: 'Indonesia',
     nik: '',
     gender: 'male' as 'male' | 'female',
     birth_place: '',
@@ -286,9 +289,15 @@ function StatusContent() {
   // --- EDIT JAMAAH PROFILE MODAL HANDLERS ---
   function openEditJamaahModal(j: Jamaah) {
     setEditJamaahModal(j)
+    const isWna = Boolean(
+      (j.nationality && j.nationality.toLowerCase() !== 'indonesia') ||
+      (j as any).citizenship_type === 'wna'
+    )
     setEditForm({
       full_name: j.full_name || '',
       father_name: j.father_name || '',
+      citizenship_type: isWna ? 'wna' : 'wni',
+      nationality: j.nationality || (isWna ? 'Malaysia' : 'Indonesia'),
       nik: j.nik || '',
       gender: (j.gender as 'male' | 'female') || 'male',
       birth_place: j.birth_place || '',
@@ -777,6 +786,10 @@ function StatusContent() {
                         : group.type === 'individual'
                         ? 'Diri Sendiri (PIC)'
                         : 'Anggota Rombongan'
+                    const isWna = Boolean(
+                      (jamaah.nationality && jamaah.nationality.toLowerCase() !== 'indonesia') ||
+                      (jamaah as any).citizenship_type === 'wna'
+                    )
                     const isExpanded = expandedJamaahs[jamaah.id] ?? true
                     const ktpRequired = jamaah.birth_date ? isKtpRequired(jamaah.birth_date) : true
 
@@ -789,14 +802,18 @@ function StatusContent() {
                       {
                         type: 'ktp',
                         label: 'KTP Asli',
-                        required: ktpRequired,
-                        desc: ktpRequired ? 'Wajib (usia 17 tahun ke atas)' : 'Tidak wajib (di bawah 17 th)',
+                        required: !isWna && ktpRequired,
+                        desc: isWna
+                          ? 'Khusus WNI (tidak wajib untuk WNA)'
+                          : ktpRequired
+                          ? 'Wajib (usia 17 tahun ke atas)'
+                          : 'Tidak wajib (di bawah 17 th)',
                       },
                       {
                         type: 'kk',
                         label: 'Kartu Keluarga (KK)',
-                        required: true,
-                        desc: 'Wajib untuk seluruh anggota keluarga',
+                        required: !isWna,
+                        desc: isWna ? 'Opsional bagi WNA (sesuai arahan panitia)' : 'Wajib untuk seluruh anggota keluarga',
                       },
                       {
                         type: 'vaksin',
@@ -807,8 +824,10 @@ function StatusContent() {
                       {
                         type: 'paspor',
                         label: 'Paspor Asli / Scan',
-                        required: false,
-                        desc: jamaah.passport_status === 'no_passport'
+                        required: isWna,
+                        desc: isWna
+                          ? 'Wajib untuk identitas resmi dan penerbitan visa jamaah luar negeri'
+                          : jamaah.passport_status === 'no_passport'
                           ? 'Dapat menyusul / dibantu pengurusan'
                           : 'Halaman identitas paspor yang masih berlaku',
                       },
@@ -838,13 +857,36 @@ function StatusContent() {
                                   <span className="text-[11px] font-semibold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded">
                                     {relationLabel}
                                   </span>
+                                  <span
+                                    className={`text-[11px] font-semibold px-2 py-0.5 rounded border ${
+                                      isWna
+                                        ? 'bg-amber-50 text-amber-900 border-amber-300'
+                                        : 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                                    }`}
+                                  >
+                                    {isWna ? `WNA (${jamaah.nationality || 'Luar Negeri'})` : 'WNI (Indonesia)'}
+                                  </span>
                                   <span className="text-[11px] text-slate-600 bg-slate-100 px-2 py-0.5 rounded">
                                     {jamaah.gender === 'male' ? 'Laki-laki' : 'Perempuan'}
                                   </span>
                                 </div>
 
                                 <p className="text-xs text-slate-500 mt-1">
-                                  NIK: <span className="font-mono font-medium text-slate-700">{jamaah.nik || '—'}</span>
+                                  {isWna ? (
+                                    <span>
+                                      Paspor:{' '}
+                                      <span className="font-mono font-medium text-slate-700">
+                                        {jamaah.passport_number || 'Belum Ada'}
+                                      </span>
+                                    </span>
+                                  ) : (
+                                    <span>
+                                      NIK:{' '}
+                                      <span className="font-mono font-medium text-slate-700">
+                                        {jamaah.nik || '—'}
+                                      </span>
+                                    </span>
+                                  )}
                                   {' · '}
                                   Usia: {jamaah.birth_date ? `${calculateAge(jamaah.birth_date)} Tahun` : '—'}
                                   {' · '}
@@ -902,6 +944,28 @@ function StatusContent() {
                                 </div>
                                 <div className="space-y-1 text-slate-600">
                                   <p>
+                                    <span className="text-slate-400 block text-[10px]">Kewarganegaraan:</span>
+                                    <span className="font-semibold text-slate-800">
+                                      {isWna ? `WNA (${jamaah.nationality || 'Luar Negeri'})` : 'WNI (Indonesia)'}
+                                    </span>
+                                  </p>
+                                  {isWna ? (
+                                    <p>
+                                      <span className="text-slate-400 block text-[10px]">Identitas Resmi:</span>
+                                      <span className="font-medium text-slate-800 font-mono">
+                                        {jamaah.passport_number ? `Paspor: ${jamaah.passport_number}` : 'Paspor (Belum diisi)'}
+                                      </span>
+                                      {jamaah.nik && (
+                                        <span className="text-[11px] text-slate-500 block">ID/IC Asing: {jamaah.nik}</span>
+                                      )}
+                                    </p>
+                                  ) : (
+                                    <p>
+                                      <span className="text-slate-400 block text-[10px]">NIK:</span>
+                                      <span className="font-medium text-slate-800 font-mono">{jamaah.nik || '—'}</span>
+                                    </p>
+                                  )}
+                                  <p>
                                     <span className="text-slate-400 block text-[10px]">Nama Ayah Kandung:</span>
                                     <span className="font-medium text-slate-800">{jamaah.father_name || '—'}</span>
                                   </p>
@@ -929,6 +993,12 @@ function StatusContent() {
                                   <span>Kontak & Domisili</span>
                                 </div>
                                 <div className="space-y-1 text-slate-600">
+                                  {isWna && (
+                                    <p>
+                                      <span className="text-slate-400 block text-[10px]">Negara Domisili:</span>
+                                      <span className="font-semibold text-slate-800">{jamaah.nationality || 'Luar Negeri'}</span>
+                                    </p>
+                                  )}
                                   <p>
                                     <span className="text-slate-400 block text-[10px]">Nomor HP / WhatsApp:</span>
                                     <span className="font-medium text-slate-800 font-mono">{jamaah.phone || '—'}</span>
@@ -944,7 +1014,7 @@ function StatusContent() {
                                     <span className="font-medium text-slate-800">
                                       {[jamaah.village, jamaah.district, jamaah.city, jamaah.province]
                                         .filter(Boolean)
-                                        .join(', ') || '—'}
+                                        .join(', ') || jamaah.city || '—'}
                                     </span>
                                   </p>
                                 </div>
@@ -1286,6 +1356,9 @@ function StatusContent() {
                     onFileSelect={async (file) => {
                       setPassportScanFile(file)
                     }}
+                    onFileRemove={() => {
+                      setPassportScanFile(null)
+                    }}
                   />
                   <p className="text-[11px] text-slate-500">
                     Format: JPG, PNG, atau PDF (maks 10MB). Pastikan halaman identitas terbaca jelas.
@@ -1354,13 +1427,86 @@ function StatusContent() {
                 {/* Section Identitas */}
                 <div className="space-y-3">
                   <p className="text-xs font-bold text-slate-800 uppercase tracking-wide border-b pb-1">
-                    1. Identitas Kependudukan
+                    1. Identitas Kependudukan & Kewarganegaraan
                   </p>
+
+                  {/* Kewarganegaraan Toggle */}
+                  <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg space-y-2">
+                    <label className="text-xs font-semibold text-slate-800 block">
+                      Status Kewarganegaraan
+                    </label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <label
+                        className={`flex items-center gap-2 p-2 rounded border cursor-pointer text-xs transition-all ${
+                          editForm.citizenship_type === 'wni'
+                            ? 'bg-emerald-50 border-emerald-600 text-emerald-900 font-semibold'
+                            : 'bg-white border-slate-200 text-slate-700'
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name="edit_citizenship"
+                          checked={editForm.citizenship_type === 'wni'}
+                          onChange={() =>
+                            setEditForm({
+                              ...editForm,
+                              citizenship_type: 'wni',
+                              nationality: 'Indonesia',
+                            })
+                          }
+                          className="text-emerald-700 focus:ring-emerald-600"
+                        />
+                        <span>WNI (Indonesia)</span>
+                      </label>
+
+                      <label
+                        className={`flex items-center gap-2 p-2 rounded border cursor-pointer text-xs transition-all ${
+                          editForm.citizenship_type === 'wna'
+                            ? 'bg-emerald-50 border-emerald-600 text-emerald-900 font-semibold'
+                            : 'bg-white border-slate-200 text-slate-700'
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name="edit_citizenship"
+                          checked={editForm.citizenship_type === 'wna'}
+                          onChange={() =>
+                            setEditForm({
+                              ...editForm,
+                              citizenship_type: 'wna',
+                              nationality:
+                                editForm.nationality && editForm.nationality !== 'Indonesia'
+                                  ? editForm.nationality
+                                  : 'Malaysia',
+                            })
+                          }
+                          className="text-emerald-700 focus:ring-emerald-600"
+                        />
+                        <span>WNA (Luar Negeri)</span>
+                      </label>
+                    </div>
+
+                    {editForm.citizenship_type === 'wna' && (
+                      <div className="pt-2 border-t border-slate-200">
+                        <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                          Negara Asal / Kewarganegaraan
+                        </label>
+                        <input
+                          type="text"
+                          value={editForm.nationality}
+                          onChange={(e) => setEditForm({ ...editForm, nationality: e.target.value })}
+                          placeholder="Contoh: Malaysia, Thailand, Mesir, dll"
+                          className="w-full h-8 px-2.5 text-xs border border-slate-300 rounded bg-white text-slate-900 font-medium focus:border-emerald-700 focus:outline-none"
+                          required
+                        />
+                      </div>
+                    )}
+                  </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div className="space-y-1">
                       <label className="text-xs font-semibold text-slate-700">
-                        Nama Lengkap (sesuai KTP/Paspor) <span className="text-red-500">*</span>
+                        Nama Lengkap (sesuai Paspor/KTP) <span className="text-red-500">*</span>
                       </label>
                       <input
                         type="text"
@@ -1396,14 +1542,20 @@ function StatusContent() {
 
                     <div className="space-y-1">
                       <label className="text-xs font-semibold text-slate-700">
-                        NIK (16 Digit)
+                        {editForm.citizenship_type === 'wna'
+                          ? 'No. Identitas Nasional / Paspor (WNA)'
+                          : 'NIK (16 Digit)'}
                       </label>
                       <input
                         type="text"
-                        maxLength={16}
+                        maxLength={editForm.citizenship_type === 'wna' ? 30 : 16}
                         value={editForm.nik}
                         onChange={(e) => setEditForm({ ...editForm, nik: e.target.value })}
-                        placeholder="Contoh: 3501..."
+                        placeholder={
+                          editForm.citizenship_type === 'wna'
+                            ? 'Nomor Paspor atau IC (Opsional)'
+                            : 'Contoh: 3501...'
+                        }
                         className="w-full h-9 px-3 border border-slate-300 rounded-md text-sm text-slate-900 font-mono font-medium focus:border-emerald-700 focus:outline-none"
                       />
                     </div>

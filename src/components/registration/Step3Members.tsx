@@ -5,7 +5,7 @@ import { useRegistration, JamaahDraft } from '@/contexts/RegistrationContext'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Select } from '@/components/ui/Select'
-import { ChevronDown, ChevronUp, Plus, Trash2, User, AlertCircle, MapPin, FileText, HeartPulse, Copy, Check } from 'lucide-react'
+import { ChevronDown, ChevronUp, Plus, Trash2, User, AlertCircle, MapPin, FileText, HeartPulse, Copy, Check, Globe, Info } from 'lucide-react'
 import { cn, isKtpRequired, calculateAge } from '@/lib/utils'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -314,7 +314,7 @@ function MemberForm({ member, index, isFirst, canRemove, isExpanded, onToggleExp
                     }}
                     className="text-emerald-700 focus:ring-emerald-600"
                   />
-                  <span>🇮🇩 WNI (Indonesia)</span>
+                  <span>WNI (Indonesia)</span>
                 </label>
 
                 <label
@@ -340,7 +340,7 @@ function MemberForm({ member, index, isFirst, canRemove, isExpanded, onToggleExp
                     }}
                     className="text-emerald-700 focus:ring-emerald-600"
                   />
-                  <span>🌏 WNA (Luar Negeri)</span>
+                  <span>WNA (Luar Negeri)</span>
                 </label>
               </div>
 
@@ -364,42 +364,45 @@ function MemberForm({ member, index, isFirst, canRemove, isExpanded, onToggleExp
                             setValue('nationality', e.target.value)
                           }
                         }}
-                        className="w-full px-2.5 py-1.5 text-xs border border-slate-300 rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-emerald-600 font-medium"
+                        className="w-full px-2.5 py-1.5 text-xs border border-slate-300 rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-emerald-600 font-medium text-slate-900"
                       >
-                        <optgroup label="🌏 Asia Tenggara (ASEAN)">
-                          {COUNTRIES.filter((c) => c.group === 'Asia Tenggara').map((c) => (
+                        <optgroup label="Asia Tenggara (ASEAN)">
+                          {COUNTRIES.filter((c) => c.group === 'Asia Tenggara (ASEAN)').map((c) => (
                             <option key={c.code} value={c.name}>
-                              {c.flag} {c.name}
+                              {c.name}
                             </option>
                           ))}
                         </optgroup>
-                        <optgroup label="🕋 Timur Tengah & Afrika">
-                          {COUNTRIES.filter((c) => c.group === 'Timur Tengah & Afrika').map((c) => (
+                        <optgroup label="Timur Tengah & Afrika Utara">
+                          {COUNTRIES.filter((c) => c.group === 'Timur Tengah & Afrika Utara').map((c) => (
                             <option key={c.code} value={c.name}>
-                              {c.flag} {c.name}
+                              {c.name}
                             </option>
                           ))}
                         </optgroup>
-                        <optgroup label="⛩️ Asia Lainnya">
-                          {COUNTRIES.filter((c) => c.group === 'Asia Lainnya').map((c) => (
+                        <optgroup label="Asia Selatan & Timur">
+                          {COUNTRIES.filter((c) => c.group === 'Asia Selatan & Timur').map((c) => (
                             <option key={c.code} value={c.name}>
-                              {c.flag} {c.name}
+                              {c.name}
                             </option>
                           ))}
                         </optgroup>
-                        <optgroup label="🌍 Eropa, Amerika & Oseania">
+                        <optgroup label="Eropa & Barat">
                           {COUNTRIES.filter((c) => c.group === 'Eropa & Barat').map((c) => (
                             <option key={c.code} value={c.name}>
-                              {c.flag} {c.name}
+                              {c.name}
                             </option>
                           ))}
                         </optgroup>
-                        <option value="Lainnya">✍️ Negara Lainnya (Tulis Manual)</option>
+                        <option value="Lainnya">Negara Lainnya (Tulis Manual)</option>
                       </select>
                     </div>
-                    <p className="text-[11px] text-emerald-800 flex-1 leading-snug">
-                      💡 Bagi jamaah WNA, identitas resmi yang diverifikasi adalah nomor <strong>Paspor</strong> (NIK Indonesia tidak diperlukan).
-                    </p>
+                    <div className="flex items-center gap-2 p-2 bg-slate-50 border border-slate-200 rounded-md flex-1 text-slate-600">
+                      <Info className="w-3.5 h-3.5 text-emerald-700 shrink-0" />
+                      <p className="text-[11px] leading-snug">
+                        Bagi jamaah WNA, identitas resmi yang diverifikasi adalah nomor <strong>Paspor</strong> (NIK Indonesia tidak diperlukan).
+                      </p>
+                    </div>
                   </div>
 
                   {isCustomCountry && (
