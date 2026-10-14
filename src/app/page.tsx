@@ -1,3 +1,4 @@
+import type { Metadata } from 'next'
 import Link from 'next/link'
 import {
   MapPin,
@@ -15,38 +16,137 @@ import {
   ShieldCheck,
   Sparkles,
   CheckCircle2,
+  Users,
+  Check,
 } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
-import { createClient } from '@/lib/supabase/server'
+import { createServiceClient } from '@/lib/supabase/server'
+
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
 
 async function getDeparturePoints() {
-  const supabase = await createClient()
-  const { data } = await supabase
-    .from('departure_points')
-    .select('*')
-    .eq('is_active', true)
-    .order('sort_order')
-  return data ?? []
+  try {
+    const supabase = await createServiceClient()
+    const { data } = await supabase
+      .from('departure_points')
+      .select('*')
+      .eq('is_active', true)
+      .order('sort_order')
+    return data ?? []
+  } catch (err) {
+    console.error('[HomePage/getDeparturePoints]', err)
+    return []
+  }
 }
 
 async function getActivePackages() {
-  const supabase = await createClient()
-  const { data } = await supabase
-    .from('packages')
-    .select('*')
-    .eq('is_active', true)
-    .order('price', { ascending: true })
-  return data ?? []
+  try {
+    const supabase = await createServiceClient()
+    const [pkgRes, benefitsRes] = await Promise.all([
+      supabase
+        .from('packages')
+        .select('*')
+        .eq('is_active', true)
+        .order('price', { ascending: true }),
+      supabase
+        .from('app_settings')
+        .select('value')
+        .eq('key', 'package_benefits')
+        .maybeSingle(),
+    ])
+
+    const benefitsMap: Record<string, string[]> =
+      (benefitsRes.data?.value as Record<string, string[]>) || {}
+
+    return (pkgRes.data ?? []).map((pkg) => {
+      const customBenefits = benefitsMap[pkg.id]
+      const upper = (pkg.name || '').toUpperCase()
+      const roomTag = upper.includes('DOUBLE') || upper.includes('BERDUA')
+        ? 'Kamar Double (2 Orang)'
+        : upper.includes('TRIPLE') || upper.includes('BERTIGA')
+        ? 'Kamar Triple (3 Orang)'
+        : 'Kamar Quad (4 Orang)'
+
+      const defaultBenefits = [
+        `Akomodasi Hotel Makkah & Madinah (${roomTag})`,
+        'Tiket Pesawat PP Internasional',
+        'Visa Umrah & Asuransi Perjalanan',
+        'Muthawwif & Bus AC Eksekutif',
+        'Perlengkapan Umrah Resmi Panitia',
+      ]
+
+      return {
+        ...pkg,
+        benefits: Array.isArray(customBenefits) && customBenefits.length > 0
+          ? customBenefits
+          : defaultBenefits,
+      }
+    })
+  } catch (err) {
+    console.error('[HomePage/getActivePackages]', err)
+    return []
+  }
 }
 
 async function getGeneralSettings() {
-  const supabase = await createClient()
-  const { data } = await supabase
-    .from('app_settings')
-    .select('value')
-    .eq('key', 'general_parameters')
-    .maybeSingle()
-  return (data?.value as Record<string, unknown> | undefined) || {}
+  try {
+    const supabase = await createServiceClient()
+    const { data } = await supabase
+      .from('app_settings')
+      .select('value')
+      .eq('key', 'general_parameters')
+      .maybeSingle()
+    return (data?.value as Record<string, unknown> | undefined) || {}
+  } catch (err) {
+    console.error('[HomePage/getGeneralSettings]', err)
+    return {}
+  }
+}
+
+export async function generateMetadata(): Promise<Metadata> {
+  const generalSettings = await getGeneralSettings()
+  const siteTitle =
+    (generalSettings.siteTitle as string) ||
+    process.env.NEXT_PUBLIC_APP_NAME ||
+    'Portal Pendaftaran Umrah Gontor'
+  const siteSubtitle =
+    (generalSettings.siteSubtitle as string) ||
+    'Daftarkan diri Anda atau keluarga untuk program umrah resmi Pondok Modern Darussalam Gontor. Proses pendaftaran dirancang sesederhana mungkin.'
+  const bannerUrl = (generalSettings.bannerUrl as string) || ''
+  const logoUrl = (generalSettings.logoUrl as string) || ''
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://umroh-gontor.vercel.app'
+  let ogImage = bannerUrl || logoUrl || `${baseUrl}/og-image.jpg`
+  if (ogImage.startsWith('/')) {
+    ogImage = `${baseUrl}${ogImage}`
+  }
+
+  return {
+    title: siteTitle,
+    description: siteSubtitle,
+    openGraph: {
+      title: siteTitle,
+      description: siteSubtitle,
+      url: baseUrl,
+      siteName: siteTitle,
+      images: [
+        {
+          url: ogImage,
+          width: 1200,
+          height: 630,
+          alt: siteTitle,
+        },
+      ],
+      locale: 'id_ID',
+      type: 'website',
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title: siteTitle,
+      description: siteSubtitle,
+      images: [ogImage],
+    },
+  }
 }
 
 export default async function HomePage() {
@@ -62,16 +162,19 @@ export default async function HomePage() {
   const isAvailable = isRegistrationOpen && hasActivePackages
 
   // Branding & Text Content
-  const siteTitle = (generalSettings.siteTitle as string) || 'Umrah 100 Tahun Gontor'
+  const siteTitle =
+    (generalSettings.siteTitle as string) ||
+    process.env.NEXT_PUBLIC_APP_NAME ||
+    'Portal Pendaftaran Umrah Gontor'
   const siteSubtitle =
     (generalSettings.siteSubtitle as string) ||
-    'Daftarkan diri Anda atau keluarga untuk program umrah dalam rangka peringatan 100 tahun Pondok Modern Darussalam Gontor. Proses pendaftaran dirancang sesederhana mungkin.'
+    'Daftarkan diri Anda atau keluarga untuk program umrah resmi Pondok Modern Darussalam Gontor. Proses pendaftaran dirancang sesederhana mungkin.'
   const heroBadge = (generalSettings.heroBadge as string) || 'Pendaftaran Resmi'
   const brandLogoText = (generalSettings.brandLogoText as string) || 'G'
   const logoUrl = (generalSettings.logoUrl as string) || ''
 
   // Footer & Organization
-  const footerTitle = (generalSettings.footerTitle as string) || 'Panitia Umrah 100 Tahun Gontor'
+  const footerTitle = (generalSettings.footerTitle as string) || 'Panitia Umrah Gontor'
   const footerSubtitle = (generalSettings.footerSubtitle as string) || 'Pondok Modern Darussalam Gontor'
   const footerCopyright = (generalSettings.footerCopyright as string) || `© ${new Date().getFullYear()}`
 
@@ -292,6 +395,132 @@ export default async function HomePage() {
             </Link>
           </div>
         </div>
+      </section>
+
+      {/* Divider */}
+      <div className="border-t border-[var(--border)]" />
+
+      {/* ============================================================
+          Pilihan Paket Umrah & Tipe Kamar
+          ============================================================ */}
+      <section id="paket" className="max-w-5xl mx-auto px-4 sm:px-6 py-12">
+        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-6">
+          <div>
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800 mb-2 border border-emerald-200">
+              <Layers className="w-3.5 h-3.5 text-emerald-700" />
+              Paket Resmi Terbuka
+            </div>
+            <h2 className="text-xl sm:text-2xl font-bold text-[var(--text-primary)] tracking-tight">
+              Pilihan Paket Umrah & Tipe Kamar
+            </h2>
+            <p className="text-sm text-[var(--text-secondary)] mt-1 max-w-xl">
+              Pilih tipe akomodasi kamar yang sesuai dengan preferensi kenyamanan ibadah Anda dan keluarga.
+            </p>
+          </div>
+          <div className="text-xs text-[var(--text-muted)]">
+            {activePackages.length} Paket Tersedia
+          </div>
+        </div>
+
+        {activePackages.length === 0 ? (
+          <div className="p-6 bg-slate-50 border border-[var(--border)] rounded-[var(--radius-lg)] text-center text-sm text-[var(--text-secondary)]">
+            <Layers className="w-8 h-8 text-slate-400 mx-auto mb-2" />
+            <p className="font-semibold text-slate-700">Pilihan Paket Sedang Disiapkan</p>
+            <p className="text-xs text-slate-500 mt-1">
+              Rincian biaya paket kamar sedang dalam tahap penyesuaian oleh Panitia.
+            </p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+            {activePackages.map((pkg) => {
+              const upper = pkg.name.toUpperCase()
+              const isDouble = upper.includes('DOUBLE') || upper.includes('BERDUA')
+              const isTriple = upper.includes('TRIPLE') || upper.includes('BERTIGA')
+              const roomBadge = isDouble
+                ? 'Kamar Double (Berdua)'
+                : isTriple
+                ? 'Kamar Triple (Bertiga)'
+                : 'Kamar Quad (Berempat)'
+
+              return (
+                <div
+                  key={pkg.id}
+                  className="flex flex-col justify-between border-2 border-emerald-100 hover:border-emerald-500/70 bg-gradient-to-b from-white to-emerald-50/20 rounded-2xl p-5 shadow-xs hover:shadow-md transition-all relative overflow-hidden group"
+                >
+                  <div className="space-y-4">
+                    {/* Badge */}
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                        <Users className="w-3.5 h-3.5 text-emerald-600" />
+                        {roomBadge}
+                      </span>
+                      <span className="text-[11px] font-semibold text-emerald-700 bg-white px-2 py-0.5 rounded border border-emerald-100">
+                        Tersedia
+                      </span>
+                    </div>
+
+                    {/* Name */}
+                    <div>
+                      <h3 className="text-base font-bold text-[var(--text-primary)] group-hover:text-emerald-800 transition-colors line-clamp-2">
+                        {pkg.name}
+                      </h3>
+                      <p className="text-xs text-[var(--text-muted)] mt-1">
+                        Biaya resmi per jamaah termasuk bimbingan & akomodasi
+                      </p>
+                    </div>
+
+                    {/* Price & DP */}
+                    <div className="p-3.5 bg-white rounded-xl border border-emerald-100/80 shadow-2xs space-y-1">
+                      <div className="flex items-baseline gap-1">
+                        <span className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
+                          Rp{Number(pkg.price).toLocaleString('id-ID')}
+                        </span>
+                        <span className="text-xs font-medium text-slate-500">/ jamaah</span>
+                      </div>
+                      <p className="text-xs font-semibold text-emerald-800">
+                        Uang Muka (DP): Rp{Number(pkg.dp_amount).toLocaleString('id-ID')}
+                      </p>
+                    </div>
+
+                    {/* Inclusions */}
+                    <div className="space-y-2 pt-1 border-t border-slate-100 text-xs text-slate-600">
+                      {(pkg.benefits && pkg.benefits.length > 0 ? pkg.benefits : [
+                        'Akomodasi Hotel Makkah & Madinah',
+                        'Tiket Pesawat PP Internasional',
+                        'Visa Umrah & Asuransi Perjalanan',
+                        'Muthawwif & Bus AC Eksekutif',
+                        'Perlengkapan Umrah Resmi Panitia',
+                      ]).map((benefit: string, bIdx: number) => (
+                        <div key={bIdx} className="flex items-center gap-2">
+                          <Check className="w-4 h-4 text-emerald-600 shrink-0" />
+                          <span>{benefit}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* CTA */}
+                  <div className="pt-5 mt-4 border-t border-slate-100">
+                    {isAvailable ? (
+                      <Link href={`/daftar?package=${pkg.id}`} className="block">
+                        <Button className="w-full justify-center group-hover:bg-emerald-700 shadow-2xs">
+                          Pilih Paket Ini
+                          <ChevronRight className="w-4 h-4 ml-1.5" />
+                        </Button>
+                      </Link>
+                    ) : (
+                      <Link href="/daftar" className="block">
+                        <Button variant="outline" className="w-full justify-center">
+                          Lihat Syarat Pendaftaran
+                        </Button>
+                      </Link>
+                    )}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )}
       </section>
 
       {/* Divider */}

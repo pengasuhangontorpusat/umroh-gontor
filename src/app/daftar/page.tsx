@@ -10,8 +10,9 @@ import { Step5Payment } from '@/components/registration/Step5Payment'
 import { Step6Review } from '@/components/registration/Step6Review'
 import { Step7Success } from '@/components/registration/Step7Success'
 import Link from 'next/link'
+import { useSearchParams } from 'next/navigation'
 import { ChevronLeft, RotateCcw, AlertCircle, Clock, Search, Home, Layers, Loader2 } from 'lucide-react'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 
 const STEPS = [
   { id: 1, label: 'Jenis' },
@@ -22,8 +23,19 @@ const STEPS = [
   { id: 6, label: 'Review' },
 ]
 
+function PackageParamSync({ setDraft }: { setDraft: (d: any) => void }) {
+  const searchParams = useSearchParams()
+  const pkgId = searchParams.get('package')
+  useEffect(() => {
+    if (pkgId) {
+      setDraft({ package_id: pkgId })
+    }
+  }, [pkgId, setDraft])
+  return null
+}
+
 export default function DaftarPage() {
-  const { draft, hasRestoredDraft, dismissRestoredNotice, clearDraftAndReset } = useRegistration()
+  const { draft, setDraft, hasRestoredDraft, dismissRestoredNotice, clearDraftAndReset } = useRegistration()
   const { step } = draft
 
   const [isRegistrationOpen, setIsRegistrationOpen] = useState<boolean | null>(null)
@@ -161,6 +173,9 @@ export default function DaftarPage() {
 
   return (
     <div className="min-h-screen bg-[var(--surface)]">
+      <Suspense fallback={null}>
+        <PackageParamSync setDraft={setDraft} />
+      </Suspense>
       {/* Header */}
       <header className="bg-white border-b border-[var(--border)] sticky top-0 z-30">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 h-14 flex items-center gap-4">

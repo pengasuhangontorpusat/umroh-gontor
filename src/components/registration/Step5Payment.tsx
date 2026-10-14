@@ -16,7 +16,7 @@ const DEFAULT_BANKS: BankAccount[] = [
     id: '1',
     bankName: 'Bank Syariah Indonesia (BSI)',
     accountNumber: '7100100100',
-    accountHolder: 'PANITIA UMRAH 100 TAHUN GONTOR',
+    accountHolder: 'PONDOK MODERN DARUSSALAM GONTOR',
     isActive: true,
   },
   {
@@ -30,7 +30,7 @@ const DEFAULT_BANKS: BankAccount[] = [
 
 const FALLBACK_PACKAGE: Package = {
   id: '99999999-9999-9999-9999-999999999999',
-  name: 'Paket Umrah 100 Tahun Gontor',
+  name: 'Paket Umrah Gontor',
   price: 37200000,
   dp_amount: 5000000,
   currency: 'IDR',

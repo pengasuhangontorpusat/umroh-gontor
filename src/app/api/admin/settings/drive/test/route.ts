@@ -136,10 +136,17 @@ export async function POST(req: NextRequest) {
     })
   } catch (err: unknown) {
     console.error('[settings/drive/test]', err)
-    const errorMsg =
+    let errorMsg =
       err instanceof Error
         ? err.message
         : 'Gagal terhubung ke Google Drive. Periksa kembali kredensial atau pastikan akses folder sudah diberikan.'
+
+    if (errorMsg.includes('invalid_grant')) {
+      errorMsg =
+        'Google OAuth Error (invalid_grant): Token kedaluwarsa atau dicabut. ' +
+        'Penyebab: Status "OAuth consent screen" di Google Cloud Console masih berstatus "Testing" (Refresh Token otomatis kedaluwarsa setelah 7 hari). ' +
+        'Solusi: Ubah status menjadi "In production" (klik tombol "Publish App") di Google Cloud Console agar token berlaku permanen, lalu generate Refresh Token baru melalui OAuth Playground.'
+    }
 
     return NextResponse.json({ error: errorMsg }, { status: 500 })
   }

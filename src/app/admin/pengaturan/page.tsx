@@ -104,6 +104,13 @@ const INITIAL_PACKAGES = [
     dpAmount: 5000000,
     description: 'Akomodasi standar hotel bintang 5 sekamar berempat.',
     isActive: true,
+    benefits: [
+      'Akomodasi Hotel Makkah & Madinah (Kamar Quad / 4 Orang)',
+      'Tiket Pesawat PP Internasional',
+      'Visa Umrah & Asuransi Perjalanan',
+      'Muthawwif & Bus AC Eksekutif',
+      'Perlengkapan Umrah Resmi Panitia',
+    ],
   },
   {
     id: '2',
@@ -113,6 +120,13 @@ const INITIAL_PACKAGES = [
     dpAmount: 5000000,
     description: 'Akomodasi hotel bintang 5 sekamar bertiga.',
     isActive: true,
+    benefits: [
+      'Akomodasi Hotel Makkah & Madinah (Kamar Triple / 3 Orang)',
+      'Tiket Pesawat PP Internasional',
+      'Visa Umrah & Asuransi Perjalanan',
+      'Muthawwif & Bus AC Eksekutif',
+      'Perlengkapan Umrah Resmi Panitia',
+    ],
   },
   {
     id: '3',
@@ -122,6 +136,13 @@ const INITIAL_PACKAGES = [
     dpAmount: 5000000,
     description: 'Akomodasi hotel bintang 5 sekamar berdua (khusus pasangan suami-istri/keluarga).',
     isActive: true,
+    benefits: [
+      'Akomodasi Hotel Makkah & Madinah (Kamar Double / 2 Orang)',
+      'Tiket Pesawat PP Internasional',
+      'Visa Umrah & Asuransi Perjalanan',
+      'Muthawwif & Bus AC Eksekutif',
+      'Perlengkapan Umrah Resmi Panitia',
+    ],
   },
 ]
 
@@ -130,7 +151,7 @@ const INITIAL_BANK_ACCOUNTS = [
     id: '1',
     bankName: 'Bank Syariah Indonesia (BSI)',
     accountNumber: '7100100100',
-    accountHolder: 'PANITIA UMRAH 100 TAHUN GONTOR',
+    accountHolder: 'PONDOK MODERN DARUSSALAM GONTOR',
     isActive: true,
   },
   {
@@ -243,7 +264,7 @@ export default function MasterSettingsPage() {
       .then((data) => {
         if (data.packages && data.packages.length > 0) {
           setPackages(
-            data.packages.map((p: { id: string; name: string; price: number; dp_amount: number; departure_date?: string; is_active: boolean }) => ({
+            data.packages.map((p: { id: string; name: string; price: number; dp_amount: number; departure_date?: string; is_active: boolean; benefits?: string[] }) => ({
               id: p.id,
               name: p.name,
               roomType: p.name.includes('Double') ? 'Double' : p.name.includes('Triple') ? 'Triple' : 'Quad',
@@ -251,6 +272,7 @@ export default function MasterSettingsPage() {
               dpAmount: Number(p.dp_amount),
               description: p.departure_date ? `Keberangkatan: ${p.departure_date}` : 'Akomodasi hotel bintang 5.',
               isActive: p.is_active,
+              benefits: p.benefits || [],
             }))
           )
         }
@@ -391,7 +413,27 @@ export default function MasterSettingsPage() {
     price: 37200000,
     dpAmount: 5000000,
     description: '',
+    benefits: [
+      'Akomodasi Hotel Makkah & Madinah',
+      'Tiket Pesawat PP Internasional',
+      'Visa Umrah & Asuransi Perjalanan',
+      'Muthawwif & Bus AC Eksekutif',
+      'Perlengkapan Umrah Resmi Panitia',
+    ],
   })
+  const [newBenefitInput, setNewBenefitInput] = useState('')
+
+  const [isEditPackageOpen, setIsEditPackageOpen] = useState(false)
+  const [editingPackage, setEditingPackage] = useState<{
+    id: string
+    name: string
+    roomType: string
+    price: number
+    dpAmount: number
+    description: string
+    benefits: string[]
+  } | null>(null)
+  const [editBenefitInput, setEditBenefitInput] = useState('')
 
   const [isAddBankOpen, setIsAddBankOpen] = useState(false)
   const [newBank, setNewBank] = useState({
@@ -525,6 +567,7 @@ export default function MasterSettingsPage() {
           name: newPackage.name,
           price: Number(newPackage.price) || 0,
           dp_amount: Number(newPackage.dpAmount) || 5000000,
+          benefits: newPackage.benefits,
           is_active: true,
         }),
       })
@@ -540,13 +583,92 @@ export default function MasterSettingsPage() {
             dpAmount: Number(data.package.dp_amount),
             description: newPackage.description || 'Akomodasi hotel bintang 5.',
             isActive: data.package.is_active,
+            benefits: data.package.benefits || newPackage.benefits,
           },
         ])
-        setNewPackage({ name: '', roomType: 'Quad', price: 37200000, dpAmount: 5000000, description: '' })
+        setNewPackage({
+          name: '',
+          roomType: 'Quad',
+          price: 37200000,
+          dpAmount: 5000000,
+          description: '',
+          benefits: [
+            'Akomodasi Hotel Makkah & Madinah',
+            'Tiket Pesawat PP Internasional',
+            'Visa Umrah & Asuransi Perjalanan',
+            'Muthawwif & Bus AC Eksekutif',
+            'Perlengkapan Umrah Resmi Panitia',
+          ],
+        })
+        setNewBenefitInput('')
         setIsAddPackageOpen(false)
         triggerSaveNotification()
       } else {
         alert(data.error || 'Gagal menambahkan paket.')
+      }
+    } catch {
+      alert('Terjadi kesalahan koneksi.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleOpenEditPackage = (pkg: typeof packages[0]) => {
+    setEditingPackage({
+      id: pkg.id,
+      name: pkg.name,
+      roomType: pkg.roomType,
+      price: pkg.price,
+      dpAmount: pkg.dpAmount,
+      description: pkg.description,
+      benefits: pkg.benefits && pkg.benefits.length > 0 ? [...pkg.benefits] : [
+        'Akomodasi Hotel Makkah & Madinah',
+        'Tiket Pesawat PP Internasional',
+        'Visa Umrah & Asuransi Perjalanan',
+        'Muthawwif & Bus AC Eksekutif',
+        'Perlengkapan Umrah Resmi Panitia',
+      ],
+    })
+    setEditBenefitInput('')
+    setIsEditPackageOpen(true)
+  }
+
+  const handleSaveEditPackage = async () => {
+    if (!editingPackage || !editingPackage.name) return
+    setLoading(true)
+    try {
+      const res = await fetch('/api/admin/settings/packages', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: editingPackage.id,
+          name: editingPackage.name,
+          price: Number(editingPackage.price) || 0,
+          dp_amount: Number(editingPackage.dpAmount) || 5000000,
+          benefits: editingPackage.benefits,
+        }),
+      })
+      const data = await res.json()
+      if (res.ok && data.package) {
+        setPackages((prev) =>
+          prev.map((p) =>
+            p.id === editingPackage.id
+              ? {
+                  ...p,
+                  name: editingPackage.name,
+                  roomType: editingPackage.roomType,
+                  price: Number(editingPackage.price),
+                  dpAmount: Number(editingPackage.dpAmount),
+                  benefits: editingPackage.benefits,
+                }
+              : p
+          )
+        )
+        setIsEditPackageOpen(false)
+        setEditingPackage(null)
+        triggerSaveNotification()
+      } else {
+        alert(data.error || 'Gagal memperbarui paket.')
       }
     } catch {
       alert('Terjadi kesalahan koneksi.')
@@ -1084,12 +1206,40 @@ export default function MasterSettingsPage() {
                       </span>
                     </div>
                   </div>
+
+                  {/* List Fasilitas & Benefit */}
+                  <div className="mt-3 pt-3 border-t border-slate-100 space-y-1.5">
+                    <p className="text-[11px] font-semibold text-slate-700">Fasilitas & Benefit ({pkg.benefits?.length || 0}):</p>
+                    <div className="space-y-1 text-[11px] text-slate-600">
+                      {(pkg.benefits && pkg.benefits.length > 0 ? pkg.benefits : [
+                        'Akomodasi Hotel Makkah & Madinah',
+                        'Tiket Pesawat PP Internasional',
+                        'Visa Umrah & Asuransi Perjalanan',
+                        'Muthawwif & Bus AC Eksekutif',
+                        'Perlengkapan Umrah Resmi Panitia',
+                      ]).map((b: string, i: number) => (
+                        <div key={i} className="flex items-start gap-1.5">
+                          <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
+                          <span className="line-clamp-2">{b}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                 </div>
 
-                <div className="pt-3 border-t border-[var(--border)] flex justify-end">
+                <div className="pt-3 border-t border-[var(--border)] flex items-center justify-between">
                   <button
+                    type="button"
+                    onClick={() => handleOpenEditPackage(pkg)}
+                    className="text-xs text-[var(--primary)] hover:text-emerald-700 font-medium flex items-center gap-1.5 py-1 px-2.5 rounded-lg border border-emerald-200 bg-emerald-50/50 hover:bg-emerald-100/60 transition-colors"
+                  >
+                    <Edit2 className="w-3.5 h-3.5" />
+                    Edit Paket & Benefit
+                  </button>
+                  <button
+                    type="button"
                     onClick={() => deletePackage(pkg.id)}
-                    className="text-xs text-red-600 hover:text-red-700 flex items-center gap-1"
+                    className="text-xs text-red-600 hover:text-red-700 flex items-center gap-1 py-1 px-2 rounded hover:bg-red-50 transition-colors"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                     Hapus
@@ -1258,6 +1408,9 @@ export default function MasterSettingsPage() {
                   placeholder="1//048nZDPM24dXHCgYIARAAGAQSNwF-xxx"
                   className="w-full px-3 py-2 text-xs font-mono border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--primary)] bg-slate-50/50"
                 />
+                <p className="text-[11px] text-[var(--text-muted)] mt-1">
+                  <strong>Penting:</strong> Pastikan status <em>OAuth consent screen</em> di Google Cloud Console sudah <strong>&quot;In production&quot; (klik Publish App)</strong> agar token tidak otomatis hangus dalam 7 hari (penyebab error <code>invalid_grant</code>).
+                </p>
               </div>
             </div>
           )}
@@ -2165,23 +2318,284 @@ export default function MasterSettingsPage() {
             value={newPackage.dpAmount}
             onChange={(e) => setNewPackage({ ...newPackage, dpAmount: Number(e.target.value) })}
           />
-          <div>
-            <label className="block text-xs font-medium text-[var(--text-primary)] mb-1">Deskripsi Fasilitas</label>
-            <textarea
-              rows={2}
-              value={newPackage.description}
-              onChange={(e) => setNewPackage({ ...newPackage, description: e.target.value })}
-              className="w-full px-3 py-2 text-sm border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
-              placeholder="Fasilitas kamar, hotel, dll."
-            />
+
+          {/* Benefit / Fasilitas Editor */}
+          <div className="pt-2 border-t border-[var(--border)] space-y-2">
+            <div className="flex items-center justify-between">
+              <label className="block text-xs font-semibold text-[var(--text-primary)]">
+                Daftar Benefit / Fasilitas (Tampil di Landing Page)
+              </label>
+              <span className="text-[11px] text-[var(--text-muted)]">
+                {newPackage.benefits.length} fasilitas
+              </span>
+            </div>
+
+            <div className="space-y-1.5 max-h-40 overflow-y-auto p-2 bg-slate-50 border border-slate-200 rounded-lg">
+              {newPackage.benefits.length === 0 ? (
+                <p className="text-xs text-slate-400 italic text-center py-2">Belum ada benefit.</p>
+              ) : (
+                newPackage.benefits.map((b, idx) => (
+                  <div
+                    key={idx}
+                    className="flex items-center justify-between gap-2 bg-white px-2.5 py-1.5 rounded border border-slate-200 text-xs text-slate-700 shadow-2xs"
+                  >
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                      <span className="truncate">{b}</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setNewPackage((prev) => ({
+                          ...prev,
+                          benefits: prev.benefits.filter((_, i) => i !== idx),
+                        }))
+                      }
+                      className="text-slate-400 hover:text-red-600 p-0.5 shrink-0 transition-colors"
+                      title="Hapus benefit"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
+
+            <div className="flex gap-2 pt-1">
+              <input
+                type="text"
+                placeholder="Tambah benefit baru, misal: Kereta Cepat Haramain..."
+                value={newBenefitInput}
+                onChange={(e) => setNewBenefitInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault()
+                    if (newBenefitInput.trim()) {
+                      setNewPackage((prev) => ({
+                        ...prev,
+                        benefits: [...prev.benefits, newBenefitInput.trim()],
+                      }))
+                      setNewBenefitInput('')
+                    }
+                  }
+                }}
+                className="flex-1 px-3 py-1.5 text-xs border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--primary)] bg-white"
+              />
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={!newBenefitInput.trim()}
+                onClick={() => {
+                  if (newBenefitInput.trim()) {
+                    setNewPackage((prev) => ({
+                      ...prev,
+                      benefits: [...prev.benefits, newBenefitInput.trim()],
+                    }))
+                    setNewBenefitInput('')
+                  }
+                }}
+              >
+                <Plus className="w-3.5 h-3.5 mr-1" />
+                Tambah
+              </Button>
+            </div>
           </div>
-          <div className="flex justify-end gap-2 pt-2">
+
+          <div className="flex justify-end gap-2 pt-2 border-t border-[var(--border)]">
             <Button variant="ghost" onClick={() => setIsAddPackageOpen(false)}>
               Batal
             </Button>
             <Button onClick={handleAddPackage}>Simpan Paket</Button>
           </div>
         </div>
+      </Modal>
+
+      {/* MODAL: Edit Paket & Benefit */}
+      <Modal
+        isOpen={isEditPackageOpen}
+        onClose={() => {
+          setIsEditPackageOpen(false)
+          setEditingPackage(null)
+        }}
+        title={`Edit Paket & Benefit: ${editingPackage?.name || ''}`}
+      >
+        {editingPackage && (
+          <div className="space-y-4">
+            <Input
+              label="Nama Paket"
+              placeholder="Nama paket"
+              value={editingPackage.name}
+              onChange={(e) => setEditingPackage({ ...editingPackage, name: e.target.value })}
+            />
+            <div>
+              <label className="block text-xs font-medium text-[var(--text-primary)] mb-1">Tipe Kamar</label>
+              <select
+                value={editingPackage.roomType}
+                onChange={(e) => setEditingPackage({ ...editingPackage, roomType: e.target.value })}
+                className="w-full px-3 py-2 text-sm border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
+              >
+                <option value="Quad">Quad (4 Orang)</option>
+                <option value="Triple">Triple (3 Orang)</option>
+                <option value="Double">Double (2 Orang)</option>
+                <option value="Single">Single (1 Orang)</option>
+              </select>
+            </div>
+            <Input
+              label="Harga Total per Jamaah (Rp)"
+              type="number"
+              value={editingPackage.price}
+              onChange={(e) => setEditingPackage({ ...editingPackage, price: Number(e.target.value) })}
+            />
+            <Input
+              label="Minimal DP per Jamaah (Rp)"
+              type="number"
+              value={editingPackage.dpAmount}
+              onChange={(e) => setEditingPackage({ ...editingPackage, dpAmount: Number(e.target.value) })}
+            />
+
+            {/* Benefit / Fasilitas Editor */}
+            <div className="pt-2 border-t border-[var(--border)] space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="block text-xs font-semibold text-[var(--text-primary)]">
+                  Daftar Benefit / Fasilitas (Tampil di Landing Page)
+                </label>
+                <span className="text-[11px] text-[var(--text-muted)]">
+                  {editingPackage.benefits.length} fasilitas
+                </span>
+              </div>
+
+              <div className="space-y-1.5 max-h-48 overflow-y-auto p-2 bg-slate-50 border border-slate-200 rounded-lg">
+                {editingPackage.benefits.length === 0 ? (
+                  <p className="text-xs text-slate-400 italic text-center py-2">Belum ada benefit.</p>
+                ) : (
+                  editingPackage.benefits.map((b, idx) => (
+                    <div
+                      key={idx}
+                      className="flex items-center justify-between gap-2 bg-white px-2.5 py-1.5 rounded border border-slate-200 text-xs text-slate-700 shadow-2xs"
+                    >
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                        <span className="truncate">{b}</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setEditingPackage((prev) =>
+                            prev
+                              ? {
+                                  ...prev,
+                                  benefits: prev.benefits.filter((_, i) => i !== idx),
+                                }
+                              : null
+                          )
+                        }
+                        className="text-slate-400 hover:text-red-600 p-0.5 shrink-0 transition-colors"
+                        title="Hapus benefit"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              <div className="flex gap-2 pt-1">
+                <input
+                  type="text"
+                  placeholder="Tambah benefit baru, misal: Free City Tour..."
+                  value={editBenefitInput}
+                  onChange={(e) => setEditBenefitInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault()
+                      if (editBenefitInput.trim()) {
+                        setEditingPackage((prev) =>
+                          prev
+                            ? {
+                                ...prev,
+                                benefits: [...prev.benefits, editBenefitInput.trim()],
+                              }
+                            : null
+                        )
+                        setEditBenefitInput('')
+                      }
+                    }
+                  }}
+                  className="flex-1 px-3 py-1.5 text-xs border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--primary)] bg-white"
+                />
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={!editBenefitInput.trim()}
+                  onClick={() => {
+                    if (editBenefitInput.trim()) {
+                      setEditingPackage((prev) =>
+                        prev
+                          ? {
+                              ...prev,
+                              benefits: [...prev.benefits, editBenefitInput.trim()],
+                            }
+                          : null
+                      )
+                      setEditBenefitInput('')
+                    }
+                  }}
+                >
+                  <Plus className="w-3.5 h-3.5 mr-1" />
+                  Tambah
+                </Button>
+              </div>
+
+              <div className="pt-1 flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const upper = (editingPackage.name || '').toUpperCase()
+                    const roomTag = upper.includes('DOUBLE') || upper.includes('BERDUA')
+                      ? 'Kamar Double (2 Orang)'
+                      : upper.includes('TRIPLE') || upper.includes('BERTIGA')
+                      ? 'Kamar Triple (3 Orang)'
+                      : 'Kamar Quad (4 Orang)'
+                    setEditingPackage((prev) =>
+                      prev
+                        ? {
+                            ...prev,
+                            benefits: [
+                              `Akomodasi Hotel Makkah & Madinah (${roomTag})`,
+                              'Tiket Pesawat PP Internasional',
+                              'Visa Umrah & Asuransi Perjalanan',
+                              'Muthawwif & Bus AC Eksekutif',
+                              'Perlengkapan Umrah Resmi Panitia',
+                            ],
+                          }
+                        : null
+                    )
+                  }}
+                  className="text-[11px] text-[var(--primary)] hover:underline"
+                >
+                  Reset ke 5 Benefit Standar
+                </button>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2 border-t border-[var(--border)]">
+              <Button
+                variant="ghost"
+                onClick={() => {
+                  setIsEditPackageOpen(false)
+                  setEditingPackage(null)
+                }}
+              >
+                Batal
+              </Button>
+              <Button onClick={handleSaveEditPackage}>
+                Simpan Perubahan Paket
+              </Button>
+            </div>
+          </div>
+        )}
       </Modal>
 
       {/* MODAL: Tambah Rekening Bank */}

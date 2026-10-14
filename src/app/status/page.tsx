@@ -1524,7 +1524,7 @@ function StatusContent() {
                         </h2>
                       </div>
                       <p className="text-xs text-[var(--text-muted)] mt-0.5">
-                        Paket: <span className="font-semibold text-slate-800">{group?.package?.name || 'Paket Umrah 100 Tahun Gontor'}</span> ({jamaahCount} Jamaah Terdaftar)
+                        Paket: <span className="font-semibold text-slate-800">{group?.package?.name || 'Paket Umrah'}</span> ({jamaahCount} Jamaah Terdaftar)
                       </p>
                     </div>
 
@@ -1750,7 +1750,7 @@ function StatusContent() {
                         <div className="flex items-center gap-2">
                           <Wallet className="w-4 h-4 text-emerald-700" />
                           <p className="text-xs font-bold text-slate-800 uppercase tracking-wider">
-                            Rekening Resmi Pembayaran Panitia Umrah 100 Tahun Gontor
+                            Rekening Resmi Pembayaran Panitia Umrah
                           </p>
                         </div>
                         <p className="text-xs text-slate-500">

@@ -44,7 +44,7 @@ export default function AdminLoginPage() {
             <span className="text-white text-sm font-bold">G</span>
           </div>
           <div>
-            <p className="text-sm font-semibold text-[var(--text-primary)]">Umrah 100 Tahun Gontor</p>
+            <p className="text-sm font-semibold text-[var(--text-primary)]">Portal Pendaftaran Umrah</p>
             <p className="text-xs text-[var(--text-muted)]">Panel Panitia</p>
           </div>
         </div>

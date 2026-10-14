@@ -9,7 +9,7 @@ const DEFAULT_BANKS: BankAccount[] = [
     id: '1',
     bankName: 'Bank Syariah Indonesia (BSI)',
     accountNumber: '7100100100',
-    accountHolder: 'PANITIA UMRAH 100 TAHUN GONTOR',
+    accountHolder: 'PONDOK MODERN DARUSSALAM GONTOR',
     isActive: true,
   },
   {

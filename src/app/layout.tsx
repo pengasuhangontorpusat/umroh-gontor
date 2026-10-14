@@ -10,10 +10,13 @@ const inter = Inter({
 
 import { createServiceClient } from '@/lib/supabase/server'
 
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
 export async function generateMetadata(): Promise<Metadata> {
-  let siteTitle = 'Portal Pendaftaran Umrah 100 Tahun Gontor'
+  let siteTitle = process.env.NEXT_PUBLIC_APP_NAME || 'Portal Pendaftaran Umrah Gontor'
   let siteSubtitle =
-    'Daftarkan diri Anda atau keluarga untuk program umrah dalam rangka peringatan 100 tahun Pondok Modern Darussalam Gontor. Proses pendaftaran dirancang sesederhana mungkin.'
+    'Daftarkan diri Anda atau keluarga untuk program umrah Pondok Modern Darussalam Gontor. Proses pendaftaran dirancang sesederhana mungkin.'
   let bannerUrl = ''
   let logoUrl = ''
 
@@ -51,7 +54,7 @@ export async function generateMetadata(): Promise<Metadata> {
       template: `%s | ${siteTitle}`,
     },
     description: siteSubtitle,
-    keywords: ['umrah', 'gontor', '100 tahun', 'pendaftaran', 'jamaah'],
+    keywords: ['umrah', 'gontor', 'pendaftaran', 'jamaah'],
     openGraph: {
       title: siteTitle,
       description: siteSubtitle,

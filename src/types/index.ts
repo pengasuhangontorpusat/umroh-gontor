@@ -59,6 +59,8 @@ export interface Package {
   departure_date: string | null
   return_date: string | null
   is_active: boolean
+  benefits?: string[]
+  roomType?: string
   created_at: string
   updated_at: string
 }

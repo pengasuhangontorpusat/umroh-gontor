@@ -52,7 +52,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         {
           error:
-            'Pendaftaran saat ini sedang ditutup oleh Panitia Umrah 100 Tahun Gontor.',
+            'Pendaftaran saat ini sedang ditutup oleh Panitia.',
         },
         { status: 400 }
       )
